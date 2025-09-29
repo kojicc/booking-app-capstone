@@ -86,11 +86,6 @@ function handleModalClose() {
 			</button>
 		</header>
 
-		<!-- Calendar placeholder: replace with actual calendar component 
-		<div class="mt-2 p-6 bg-white/50 " aria-hidden="true">
-            <h1>Calendar goes heree</h1> 
-        </div> -->
-
 		<Calendar plugins={[TimeGrid]} {options} />
 
 		{#if showReservationModal}

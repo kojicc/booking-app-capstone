@@ -6,6 +6,7 @@
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 	import { page } from "$app/stores";
 	import Plus from "@lucide/svelte/icons/plus";
+	import ReservationDetailCard from "$lib/components/ReservationDetailCard.svelte";
 	// Map path to label for breadcrumb
 	const pathToLabel = {
 		"/dashboard": "Dashboard",
@@ -24,6 +25,21 @@ let pageLabel = $state('Reservations');
 $effect(() => {
 	pageLabel = (pathToLabel as Record<string, string>)[$page.url.pathname] ?? 'Reservations';
 });
+
+// Tester or sample content for reservation card
+
+const sampleReservation = {
+    bookingName: 'Birthday ni Anne', 
+    userWhoBooked: 'Vice Ganda', 
+    bookingStatus: 'rejected', 
+    bookingNumber: 'CLD09738PL', 
+    date: 'October 5, 2025', 
+    space: 'Recording Room', 
+    startTime: '13:00', 
+    endTime: '15:00', 
+    addons: ['Water', 'Internet'],
+    rejectionMessage: 'Please select another date'
+  };
 
 </script>
 
@@ -53,6 +69,8 @@ $effect(() => {
 				</header>
 				<div class="flex flex-1 flex-col gap-4 p-4 pt-0">
 					<!-- Main content here -->
+					<!-- Tester reservation card -->
+					 <ReservationDetailCard {...sampleReservation}/>
 				</div>
 	</Sidebar.Inset>
 </Sidebar.Provider>

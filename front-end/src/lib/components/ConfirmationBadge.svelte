@@ -11,15 +11,15 @@
   
   const statusConfig: Record<ReservationStatus, Status> = {
     confirmed: {
-      class: "bg-green-500/10 text-green-200",
+      class: "bg-green-500/10 text-green-600",
       label: "Confirmed"
     },
     pending: {
-      class: "bg-yellow-500/10 text-yellow-200", 
+      class: "bg-yellow-500/10 text-yellow-600", 
       label: "Pending"
     },
     rejected: {
-      class: "bg-red-500/10 text-red-200",
+      class: "bg-red-500/10 text-red-600",
       label: "Rejected"
     }
   };

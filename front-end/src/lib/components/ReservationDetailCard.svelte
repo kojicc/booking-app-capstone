@@ -30,21 +30,22 @@
 
 {#snippet detail(label: string, value: string)}
 	<div>
-        <p> {label}</p>
-        <p> {value}</p>
+        <p class="text-xs text-neutral-500"> {label}</p>
+        <p class="text-sm font-bold"> {value}</p>
     </div>
 {/snippet}
-<div>
+<div class="flex flex-col space-y-3 rounded-large border p-4 m-4 shadow-sm max-w-sm">
     <ConfirmationBadge status={bookingStatus.toLowerCase()}/>
-    <h3> {bookingName} </h3>
-    <p> {buildEventSubtitle()} </p>
-    <div>
+    <h3 class="text-xl font-bold"> {bookingName} </h3>
+    <p class="text-xs text-neutral-500"> {buildEventSubtitle()} </p>
+    <div class ="grid grid-cols-1 gap-2 sm:grid-cols-2">
+
         {@render detail('Reservation Under', userWhoBooked)}
         {@render detail('Booking Number', bookingNumber)}
         {@render detail('Date', date)}
         {@render detail('Time', startTime + ' - ' + endTime)}
     </div>
     {#if rejectionMessage != 'not rejected'}
-    <p> {rejectionMessage} </p>
+    <p class="text-xs text-red-600"> {rejectionMessage} </p>
     {/if}
 </div>

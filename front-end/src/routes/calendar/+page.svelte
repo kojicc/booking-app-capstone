@@ -8,14 +8,7 @@
 	import ReservationModal from "$lib/components/reservation-modal.svelte";
 	import SuccessModal from "$lib/components/success-modal.svelte";
 	import AwaitingConfirmation from "$lib/components/awaiting-confirmation.svelte";
-	import {Calendar, TimeGrid} from '@event-calendar/core';
 
-    let options = $state({
-        view: 'timeGridWeek',
-        events: [
-            // your list of events
-        ]
-    });
 	// Map path to label for breadcrumb
 	const pathToLabel = {
 		"/dashboard": "Dashboard",
@@ -47,7 +40,6 @@ function handleModalClose() {
 		// ReservationModal calls this via onSuccess after confirm
 		showReservationModal = false;
 		lastBookedTime = bookedTime ?? null;
-		// ensure only the correct modal is shown
 		showSuccessModal = false;
 		showAwaitingModal = false;
 		if (primetime) {
@@ -86,7 +78,10 @@ function handleModalClose() {
 			</button>
 		</header>
 
-		<Calendar plugins={[TimeGrid]} {options} />
+		<!-- Calendar placeholder: replace with actual calendar component -->
+		<div class="mt-2 p-6 bg-white/50 " aria-hidden="true">
+            <h1>Calendar goes heree</h1>
+        </div>
 
 		{#if showReservationModal}
 			<ReservationModal open={showReservationModal} onClose={handleModalClose} onSuccess={handleReservationSuccess} />

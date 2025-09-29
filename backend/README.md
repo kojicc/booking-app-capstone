@@ -59,16 +59,16 @@ The development server defaults to `http://127.0.0.1:8000/`.
 
 - The backend is configured to allow requests from `http://localhost:5173` and `http://127.0.0.1:5173` (SvelteKit dev server). If your frontend runs on a different origin, add it to `CORS_ALLOWED_ORIGINS` and `CSRF_TRUSTED_ORIGINS` in `backend/settings.py`.
 - Authentication uses a cookie-based refresh token plus a short-lived access token.
- - Authentication uses a cookie-based refresh token plus a short-lived access token.
+- Authentication uses a cookie-based refresh token plus a short-lived access token.
 
-  - Flow (current implementation):
+- Flow (current implementation):
 
-    1. User POSTs credentials to `/api/users/login/`. Backend authenticates and returns a JSON response containing a `tokens` object with `access` and `refresh` JWTs and a `user` object. In addition, the backend sets an HttpOnly `refresh_token` cookie containing the refresh token.
-    2. The frontend SHOULD store the access token in memory (e.g., a Svelte store) and include it in `Authorization: Bearer <access>` headers for protected requests.
-    3. When the access token expires, the frontend calls POST `/api/users/refresh/` with `credentials: 'include'`. The backend reads the HttpOnly refresh cookie, validates it (checks rotation/blacklist), and returns a new access token in the JSON response (shape: `{ "access": "<jwt_access_token>" }`). The backend also rotates the refresh token and sets a new HttpOnly refresh cookie.
-    4. To logout, POST `/api/users/logout/` with `credentials: 'include'` to have the backend blacklist the refresh token and delete the cookie.
+  1. User POSTs credentials to `/api/users/login/`. Backend authenticates and returns a JSON response containing a `tokens` object with `access` and `refresh` JWTs and a `user` object. In addition, the backend sets an HttpOnly `refresh_token` cookie containing the refresh token.
+  2. The frontend SHOULD store the access token in memory (e.g., a Svelte store) and include it in `Authorization: Bearer <access>` headers for protected requests.
+  3. When the access token expires, the frontend calls POST `/api/users/refresh/` with `credentials: 'include'`. The backend reads the HttpOnly refresh cookie, validates it (checks rotation/blacklist), and returns a new access token in the JSON response (shape: `{ "access": "<jwt_access_token>" }`). The backend also rotates the refresh token and sets a new HttpOnly refresh cookie.
+  4. To logout, POST `/api/users/logout/` with `credentials: 'include'` to have the backend blacklist the refresh token and delete the cookie.
 
-  - Important: When calling refresh and logout endpoints from the browser, use the fetch option `credentials: 'include'` so the HttpOnly cookie is sent. Do NOT attempt to read the refresh cookie from client-side JavaScript (it's HttpOnly).
+- Important: When calling refresh and logout endpoints from the browser, use the fetch option `credentials: 'include'` so the HttpOnly cookie is sent. Do NOT attempt to read the refresh cookie from client-side JavaScript (it's HttpOnly).
 
 ## Running tests
 
@@ -87,17 +87,30 @@ Authentication (users)
 - POST /api/users/register/
 
   - Description: Register a new user
-  - Body: { username, email, password, first_name?, last_name? }
-  - Response: 201 Created, user object (id, email, username, role)
+  - Body: { username?, email, password, first_name?, last_name? }
+    - Note: `email` is required and must be unique. `username` is optional for API-created accounts and will be stored as null; the system uses email as the primary login identifier.
+  - Response: 201 Created, user object (id, email, username|null, role)
+  - Duplicate-email error example (HTTP 400):
+
+    {
+    "email": [
+    "This field must be unique."
+    ]
+    }
 
 - POST /api/users/login/
+
   - Description: Login and receive JWT tokens
-  - Body: { email, password } or { username, password } depending on implementation
-  - Response: 200 OK
+  - Body: { email, password }
+  - Response: 200 OK — the JSON response contains a `tokens` object with `access` and `refresh` JWTs and a `user` object; additionally the server sets an HttpOnly `refresh_token` cookie. Example shape:
+
     {
+    "message": "Login successful",
+    "tokens": {
     "access": "<jwt_access_token>",
-    "refresh": "<jwt_refresh_token>",
-    "user": { "id": 1, "email": "...", "username": "...", "role": "user" }
+    "refresh": "<jwt_refresh_token>"
+    },
+    "user": { "id": 1, "email": "...", "username": null, "role": "user" }
     }
 
 Reservations
@@ -272,7 +285,6 @@ Recent changes (important for frontend/backoffice integration):
 - Prune command: a management command `prune_blacklist` is available to remove expired blacklist rows. Run it with:
 
   python manage.py prune_blacklist
-
 
 - User list endpoint hardening: `GET /api/users/` no longer returns full user objects and is restricted. Only admin users may call this endpoint; unauthenticated callers will receive 401, authenticated non-admins receive 403. Admins receive an aggregate response such as `{ "total_users": 42, "by_role": { "user": 38, "admin": 4 } }`.
 

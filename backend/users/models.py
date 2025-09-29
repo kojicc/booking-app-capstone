@@ -1,30 +1,6 @@
-from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 
-
-class CustomUserManager(BaseUserManager):
-    use_in_migrations = True
-
-    def _create_user(self, email, password, **extra_fields):
-        if not email:
-            raise ValueError('The given email must be set')
-        email = self.normalize_email(email)
-        username = extra_fields.get('username') or email.split('@')[0]
-        extra_fields['username'] = username
-        user = self.model(email=email, **extra_fields)
-        user.set_password(password)
-        user.save(using=self._db)
-        return user
-
-    def create_user(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', False)
-        extra_fields.setdefault('is_superuser', False)
-        return self._create_user(email, password, **extra_fields)
-
-    def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-        return self._create_user(email, password, **extra_fields)
 
 class User(AbstractUser):
     google_id = models.CharField(max_length=100, unique=True, null=True, blank=True,
@@ -34,12 +10,16 @@ class User(AbstractUser):
         choices=[("admin", "Admin"), ("user", "User"), ("external", "External")],
         default="user"
     )
+    # make username optional to support email-only signups
+    username = models.CharField(max_length=150, null=True, blank=True)
     email = models.EmailField(unique=True)
     
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username']  # username is still required, but not for login
+    # No required fields beyond email for createsuperuser/management tasks
+    REQUIRED_FIELDS = []
 
-    objects = CustomUserManager()
+    # Use Django's default manager (no custom manager)
+    objects = UserManager()
     
     # Add related_name to avoid conflicts with default User model
     groups = models.ManyToManyField(

@@ -168,3 +168,8 @@ yarn-error.log*
 *.key
 *.pem
 .secret
+
+# Ignore Django app migrations (optional - be careful: this removes tracked migrations)
+**/migrations/
+# Explicitly ignore the backend virtual environment directory
+backend/venv/

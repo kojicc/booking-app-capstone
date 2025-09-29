@@ -3,6 +3,7 @@ import jwt
 import os
 import uuid
 from datetime import datetime, timedelta
+from django.utils import timezone
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -45,6 +46,7 @@ class UserList(APIView):
             # If authenticated but not admin, return 403
             if request.user.role != 'admin':
                 return Response(status=status.HTTP_403_FORBIDDEN)
+            
             total = User.objects.count()
             by_role = (
                 User.objects.values('role')
@@ -138,7 +140,8 @@ class LoginUser(APIView):
             access_payload = {
                 "user_id": user.id,
                 "email": user.email,
-                "exp": now + timedelta(hours=1),  # short-lived access token (1 hour)
+                # tests expect a 1-hour access token
+                "exp": now + timedelta(hours=1),
                 "iat": now,
                 "type": "access"
             }
@@ -250,7 +253,11 @@ class RefreshTokenView(APIView):
             # Blacklist the old refresh token jti (if present) to prevent reuse
             if token_jti:
                 try:
-                    expires_at = datetime.utcfromtimestamp(payload.get('exp')) if payload.get('exp') else None
+                    exp_ts = payload.get('exp')
+                    expires_at = datetime.utcfromtimestamp(exp_ts) if exp_ts else None
+                    # make timezone-aware in UTC to avoid Django warnings
+                    if expires_at is not None:
+                        expires_at = timezone.make_aware(expires_at, timezone.utc)
                 except Exception:
                     expires_at = None
                 RefreshTokenBlacklist.objects.get_or_create(jti=token_jti, defaults={
@@ -291,7 +298,10 @@ class LogoutView(APIView):
                 if token_jti:
                     expires_at = None
                     try:
-                        expires_at = datetime.utcfromtimestamp(payload.get('exp')) if payload.get('exp') else None
+                        exp_ts = payload.get('exp')
+                        expires_at = datetime.utcfromtimestamp(exp_ts) if exp_ts else None
+                        if expires_at is not None:
+                            expires_at = timezone.make_aware(expires_at, timezone.utc)
                     except Exception:
                         expires_at = None
                     RefreshTokenBlacklist.objects.get_or_create(jti=token_jti, defaults={'user': user, 'expires_at': expires_at})

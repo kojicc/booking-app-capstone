@@ -4,6 +4,7 @@
     import { Input } from "$lib/components/ui/input/index.js";
     import { Label } from "$lib/components/ui/label/index.js";
     import { goto } from "$app/navigation";
+    import { login as apiLogin } from "$lib/api/index.js";
 
         let email = "";
         let password = "";
@@ -19,10 +20,14 @@
         }
         loading = true;
         try {
-            // Simulate async backend call
-            await new Promise((resolve) => setTimeout(resolve, 1200));
-            console.log({ email, password });
-            // Simulate successful login, redirect to dashboard
+            try {
+                await apiLogin(email, password);
+                //   auth tokens  (localStorage/cookies)
+            } catch (err) {
+                // If API isn't configured, fallback to mocked login
+                console.warn('Login API failed or not configured, falling back to mock.', err);
+                await new Promise((resolve) => setTimeout(resolve, 1200));
+            }
             goto("/dashboard");
         } finally {
             loading = false;

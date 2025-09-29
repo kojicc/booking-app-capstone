@@ -4,9 +4,10 @@ import { Dialog, DialogContent } from "$lib/components/ui/dialog/index.js";
 interface Props {
   open?: boolean;
   onClose?: () => void;
+  bookedTime?: string | Date | number | null;
 }
 
-let { open = $bindable(true), onClose = () => {} }: Props = $props();
+let { open = $bindable(true), onClose = () => {}, bookedTime = null }: Props = $props();
 </script>
 
 <Dialog bind:open>

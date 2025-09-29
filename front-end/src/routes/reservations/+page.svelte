@@ -18,6 +18,13 @@
 		"/help": "Get Help",
 		"/search": "Search",
 	};
+
+let pageLabel = $state('Reservations');
+
+$effect(() => {
+	pageLabel = (pathToLabel as Record<string, string>)[$page.url.pathname] ?? 'Reservations';
+});
+
 </script>
 
 <Sidebar.Provider>
@@ -33,7 +40,7 @@
 							<Breadcrumb.Root>
 								<Breadcrumb.List>
 									<Breadcrumb.Item>
-										<Breadcrumb.Page class="text-xl font-light">{pathToLabel[$page.url.pathname] || "Reservations"}</Breadcrumb.Page>
+										<Breadcrumb.Page class="text-xl font-light">{pageLabel}</Breadcrumb.Page>
 									</Breadcrumb.Item>
 								</Breadcrumb.List>
 							</Breadcrumb.Root>

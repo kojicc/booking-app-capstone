@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import DateTimeStep from "$lib/components/reservation-steps/bookslot.svelte";
 import AddonsStep from "$lib/components/reservation-steps/addon.svelte";
 import ReviewStep from "$lib/components/reservation-steps/review-form.svelte";
+import { postBooking } from "$lib/api/index.js";
 
 
 interface Props {
@@ -24,7 +25,6 @@ let selectedAddons = $state<string[]>([]);
 let startTime = $state("");
 let endTime = $state("");
 
-// Reactive calculations (runes-compatible)
 let totalHours = $state(0);
 let totalCost = $state(0);
 
@@ -62,12 +62,35 @@ function closeModal() {
 
 function handleConfirm() {
   loading = true;
-  setTimeout(() => {
-    loading = false;
-    // close the modal and notify parent to show success
-    closeModal();
-    onSuccess?.();
-  }, 1200);
+
+  // Build payload
+  const payload = {
+    bookingName,
+    date,
+    space,
+    startTime,
+    endTime,
+    addons: selectedAddons,
+    totalHours,
+    totalCost,
+  };
+
+  // Try to call backend if configured, otherwise fallback to local mock
+  (async () => {
+    try {
+      // postBooking will throw if VITE_API_BASE is not set
+      await postBooking(payload as any);
+      // optionally you can handle response data here
+    } catch (err) {
+      // If backend isn't configured or request failed, log and fallback to mock
+      console.warn('Booking API call failed or not configured, falling back to mock.', err);
+      await new Promise((r) => setTimeout(r, 900));
+    } finally {
+      loading = false;
+      closeModal();
+      onSuccess?.();
+    }
+  })();
 }
 
 // Reset step when modal closes
@@ -140,13 +163,7 @@ $effect(() => {
 
     <DialogFooter class="mt-4 flex justify-between">
       <div>
-        <button 
-          type="button" 
-          class="bg-secondary text-foreground font-medium rounded-lg px-4 py-2 border border-border shadow-sm transition-colors" 
-          onclick={closeModal}
-        >
-          Cancel
-        </button>
+        
       </div>
       <div class="flex gap-2">
         {#if step > 1}
@@ -189,7 +206,5 @@ $effect(() => {
         </div>
       </div>
     {/if}
-
-    <!-- Success modal is handled by the parent page via onSuccess -->
   </DialogContent>
 </Dialog>

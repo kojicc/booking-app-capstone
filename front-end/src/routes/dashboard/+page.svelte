@@ -16,6 +16,12 @@
 		"/help": "Get Help",
 		"/search": "Search",
 	};
+let pageLabel = $state('Dashboard');
+
+$effect(() => {
+	pageLabel = (pathToLabel as Record<string, string>)[$page.url.pathname] ?? 'Dashboard';
+});
+
 </script>
 
 <Sidebar.Provider>
@@ -30,7 +36,7 @@
 								<Breadcrumb.Root>
 									<Breadcrumb.List>
 										<Breadcrumb.Item>
-											<Breadcrumb.Page class="text-lg">{pathToLabel[$page.url.pathname] || "Dashboard"}</Breadcrumb.Page>
+											<Breadcrumb.Page class="text-lg">{pageLabel}</Breadcrumb.Page>
 										</Breadcrumb.Item>
 									</Breadcrumb.List>
 								</Breadcrumb.Root>

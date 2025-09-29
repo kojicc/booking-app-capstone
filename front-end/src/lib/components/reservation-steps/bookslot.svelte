@@ -77,7 +77,7 @@ function getAvailableTimeRanges(selectedDate: string) {
   return baseRanges.filter(range => !unavailableSlots.has(range.label));
 }
 
-// Reactive time ranges based on selected date (runes-friendly concrete state)
+// Reactive time ranges based on selected date
 let timeRanges = $state<{ label: string; primetime?: boolean }[]>([]);
 
 $effect(() => {

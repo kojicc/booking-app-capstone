@@ -33,7 +33,7 @@
 							<Breadcrumb.Root>
 								<Breadcrumb.List>
 									<Breadcrumb.Item>
-										<Breadcrumb.Page class="text-xl font-light">{pathToLabel[$page.url.pathname] || "Trade Requests"}</Breadcrumb.Page>
+										<Breadcrumb.Page class="text-xl font-light">{(pathToLabel as Record<string,string>)[$page.url.pathname] ?? 'Trade Requests'}</Breadcrumb.Page>
 									</Breadcrumb.Item>
 								</Breadcrumb.List>
 							</Breadcrumb.Root>

@@ -34,12 +34,17 @@ function handleModalClose() {
     showReservationModal = false;
 }
 
-	function handleReservationSuccess() {
+	function handleReservationSuccess(bookedTime?: string | Date | number | null) {
 		// ReservationModal calls this via onSuccess after confirm
 		// Ensure reservation modal is closed then show success
 		showReservationModal = false;
+		// store booked time so we can show prime-time state in the success modal
+		lastBookedTime = bookedTime ?? null;
 		showSuccessModal = true;
 	}
+
+	// Keep last booked time for success modal (reactive)
+	let lastBookedTime = $state<string | Date | number | null>(null);
 </script>
 
 <Sidebar.Provider>
@@ -77,7 +82,7 @@ function handleModalClose() {
 		{/if}
 
 		{#if showSuccessModal}
-			<SuccessModal open={showSuccessModal} onClose={() => (showSuccessModal = false)} />
+			<SuccessModal open={showSuccessModal} onClose={() => (showSuccessModal = false)} bookedTime={lastBookedTime} />
 		{/if}
 	</Sidebar.Inset>
 </Sidebar.Provider>

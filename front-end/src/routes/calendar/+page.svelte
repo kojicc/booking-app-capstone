@@ -7,6 +7,7 @@
 	import Plus from "@lucide/svelte/icons/plus";
 	import ReservationModal from "$lib/components/reservation-modal.svelte";
 	import SuccessModal from "$lib/components/success-modal.svelte";
+	import AwaitingConfirmation from "$lib/components/awaiting-confirmation.svelte";
 
 	// Map path to label for breadcrumb
 	const pathToLabel = {
@@ -22,6 +23,7 @@
 
 	let showReservationModal = $state(false);
 	let showSuccessModal = $state(false);
+	let showAwaitingModal = $state(false);
 
 	// Concrete page label to satisfy TypeScript when indexing pathToLabel
 	let pageLabel = $state('Calendar');
@@ -34,13 +36,18 @@ function handleModalClose() {
     showReservationModal = false;
 }
 
-	function handleReservationSuccess(bookedTime?: string | Date | number | null) {
+	function handleReservationSuccess(bookedTime?: string | Date | number | null, primetime?: boolean) {
 		// ReservationModal calls this via onSuccess after confirm
-		// Ensure reservation modal is closed then show success
 		showReservationModal = false;
-		// store booked time so we can show prime-time state in the success modal
 		lastBookedTime = bookedTime ?? null;
-		showSuccessModal = true;
+		// ensure only the correct modal is shown
+		showSuccessModal = false;
+		showAwaitingModal = false;
+		if (primetime) {
+			showAwaitingModal = true;
+		} else {
+			showSuccessModal = true;
+		}
 	}
 
 	// Keep last booked time for success modal (reactive)
@@ -83,6 +90,9 @@ function handleModalClose() {
 
 		{#if showSuccessModal}
 			<SuccessModal open={showSuccessModal} onClose={() => (showSuccessModal = false)} bookedTime={lastBookedTime} />
+		{/if}
+		{#if showAwaitingModal}
+			<AwaitingConfirmation open={showAwaitingModal} onClose={() => (showAwaitingModal = false)} bookedTime={lastBookedTime} />
 		{/if}
 	</Sidebar.Inset>
 </Sidebar.Provider>

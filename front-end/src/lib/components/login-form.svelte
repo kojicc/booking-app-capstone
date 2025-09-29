@@ -25,7 +25,6 @@
                 //   auth tokens  (localStorage/cookies)
             } catch (err) {
                 // If API isn't configured, fallback to mocked login
-                console.warn('Login API failed or not configured, falling back to mock.', err);
                 await new Promise((resolve) => setTimeout(resolve, 1200));
             }
             goto("/dashboard");

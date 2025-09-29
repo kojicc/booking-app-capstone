@@ -9,7 +9,8 @@ import { postBooking } from "$lib/api/index.js";
 interface Props {
   open?: boolean;
   onClose?: () => void;
-  onSuccess?: () => void;
+  // onSuccess receives optional bookedTime and a primetime flag
+  onSuccess?: (bookedTime?: string | Date | number | null, primetime?: boolean) => void;
 }
 
 let { open = $bindable(false), onClose, onSuccess }: Props = $props();
@@ -24,9 +25,18 @@ let space = $state("Workspace Main");
 let selectedAddons = $state<string[]>([]);
 let startTime = $state("");
 let endTime = $state("");
+let primetimeSelected = $state(false);
 
 let totalHours = $state(0);
 let totalCost = $state(0);
+
+// Validation for Bookslot (step 1)
+let canProceedStep1 = $state(false);
+
+$effect(() => {
+  // require bookingName, date, and a selected time range (start and end)
+  canProceedStep1 = !!(bookingName && bookingName.toString().trim().length > 0 && date && startTime && endTime && totalHours > 0);
+});
 
 $effect(() => {
   if (!startTime || !endTime) {
@@ -47,6 +57,11 @@ $effect(() => {
 });
 
 function nextStep() {
+  // If we're on the first step (bookslot) enforce validation
+  if (step === 1 && !canProceedStep1) {
+    // no-op; UX shows disabled Next button and a helper message
+    return;
+  }
   if (step < 3) step += 1;
 }
 
@@ -82,13 +97,13 @@ function handleConfirm() {
       await postBooking(payload as any);
       // optionally you can handle response data here
     } catch (err) {
-      // If backend isn't configured or request failed, log and fallback to mock
-      console.warn('Booking API call failed or not configured, falling back to mock.', err);
+      // If backend isn't configured or request failed, fallback to mock behaviour
       await new Promise((r) => setTimeout(r, 900));
     } finally {
       loading = false;
       closeModal();
-      onSuccess?.();
+      // pass primetime flag to parent so it can decide what modal to show
+      onSuccess?.(null, primetimeSelected);
     }
   })();
 }
@@ -143,6 +158,7 @@ $effect(() => {
         bind:space
         bind:startTime
         bind:endTime
+        bind:primetimeSelected
         {totalHours}
         {totalCost}
       />
@@ -176,13 +192,22 @@ $effect(() => {
           </button>
         {/if}
         {#if step < 3}
-          <button 
-            type="button" 
-            class="bg-primary-200-var hover:bg-primary-300-var text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2 text-sm shadow transition-colors" 
-            onclick={nextStep}
-          >
-            Next
-          </button>
+          <div class="flex flex-col items-end">
+            <button 
+              type="button" 
+              class={
+                'bg-primary-200-var text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2 text-sm shadow transition-colors ' +
+                (step === 1 && !canProceedStep1 ? 'opacity-60 cursor-not-allowed' : 'hover:bg-primary-300-var')
+              }
+              onclick={nextStep}
+              disabled={step === 1 && !canProceedStep1}
+            >
+              Next
+            </button>
+            {#if step === 1 && !canProceedStep1}
+              <div class="text-xs text-red-600 mt-2">Please fill booking name, select a date and a time range before continuing.</div>
+            {/if}
+          </div>
         {:else}
           <button 
             type="button" 

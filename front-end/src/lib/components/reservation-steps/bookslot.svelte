@@ -7,6 +7,7 @@ interface Props {
   endTime: string;
   totalHours: number;
   totalCost: number;
+  primetimeSelected?: boolean;
 }
 
 let {
@@ -15,6 +16,7 @@ let {
   space = $bindable(),
   startTime = $bindable(),
   endTime = $bindable(),
+  primetimeSelected = $bindable(false),
   totalHours,
   totalCost
 }: Props = $props();
@@ -97,6 +99,7 @@ function toggleTime(label: string) {
     if (selectedTimes.length === 0) {
       startTime = "";
       endTime = "";
+      primetimeSelected = false;
     }
   } else {
     selectedTimes = [label]; // single select for demo
@@ -105,6 +108,9 @@ function toggleTime(label: string) {
     const { start, end } = parseTimeRange(label);
     startTime = start;
     endTime = end;
+    // mark primetimeSelected based on the chosen range
+    const match = timeRanges.find(r => r.label === label);
+    primetimeSelected = !!(match && match.primetime);
   }
 }
 
@@ -118,6 +124,7 @@ $effect(() => {
     startTime = "";
     endTime = "";
     previousDate = date;
+    primetimeSelected = false;
   }
 });
 
@@ -129,8 +136,10 @@ $effect(() => {
     
     if (!matchingRange) {
       selectedTimes = [];
+      primetimeSelected = false;
     } else if (!selectedTimes.includes(currentRange)) {
       selectedTimes = [currentRange];
+      primetimeSelected = !!matchingRange.primetime;
     }
   }
 });

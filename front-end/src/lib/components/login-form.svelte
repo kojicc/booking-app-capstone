@@ -21,13 +21,22 @@
         loading = true;
         try {
             try {
-                await apiLogin(email, password);
-                //   auth tokens  (localStorage/cookies)
+                    await apiLogin(email, password);
+                    //   auth tokens  (localStorage/cookies)
+
             } catch (err) {
                 // If API isn't configured, fallback to mocked login
                 await new Promise((resolve) => setTimeout(resolve, 1200));
             }
-            goto("/dashboard");
+                // mock user for now (change role to 'admin' to test admin view)
+                // will be replaced by real data from the backend once available.
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-ignore
+                import('$lib/stores/user').then(mod => {
+                    mod.setUser({ name: 'Dev User', email, role: 'admin' });
+                });
+
+                goto("/dashboard");
         } finally {
             loading = false;
         }

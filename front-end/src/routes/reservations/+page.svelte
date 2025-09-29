@@ -7,6 +7,9 @@
 	import { page } from "$app/stores";
 	import Plus from "@lucide/svelte/icons/plus";
 	import ReservationDetailCard from "$lib/components/ReservationDetailCard.svelte";
+	import { user } from '$lib/stores/user';
+	import AdminReservations from '$lib/components/reservations-admin.svelte';
+	import UserReservations from '$lib/components/reservations-user.svelte';
 	// Map path to label for breadcrumb
 	const pathToLabel = {
 		"/dashboard": "Dashboard",
@@ -21,6 +24,8 @@
 	};
 
 let pageLabel = $state('Reservations');
+
+// Svelte auto-subscription: use $user in template
 
 $effect(() => {
 	pageLabel = (pathToLabel as Record<string, string>)[$page.url.pathname] ?? 'Reservations';
@@ -71,6 +76,11 @@ const sampleReservation = {
 					<!-- Main content here -->
 					<!-- Tester reservation card -->
 					 <ReservationDetailCard {...sampleReservation}/>
+					{#if $user?.role === 'admin'}
+						<AdminReservations />
+					{:else}
+						<UserReservations />
+					{/if}
 				</div>
 	</Sidebar.Inset>
 </Sidebar.Provider>

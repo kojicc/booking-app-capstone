@@ -4,7 +4,9 @@
     import { Input } from "$lib/components/ui/input/index.js";
     import { Label } from "$lib/components/ui/label/index.js";
     import { goto } from "$app/navigation";
-    import { login as apiLogin } from "$lib/api/index.js";
+    //import { login as apiLogin } from "$lib/api/index.js";
+    import { login } from '$lib/stores/auth';
+    import { user } from '$lib/stores/user';
 
         let email = "";
         let password = "";
@@ -19,6 +21,16 @@
             return;
         }
         loading = true;
+
+        try {
+            await login(email, password);
+            goto("/dashboard");
+        } catch (err) {
+            passwordError = "Invalid email or password.";
+        } finally {
+            loading = false;
+        }
+        /*
         try {
             try {
                     await apiLogin(email, password);
@@ -39,7 +51,7 @@
                 goto("/dashboard");
         } finally {
             loading = false;
-        }
+        }*/
     };
 </script>
 

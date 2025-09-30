@@ -12,6 +12,7 @@ export const user = writable<User | null>(null);
 
 export function setUser(u: User | null) {
   user.set(u);
+  console.log('User set to:', u);
 }
 
 export function clearUser() {

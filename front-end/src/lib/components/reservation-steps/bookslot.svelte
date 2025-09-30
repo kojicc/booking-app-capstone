@@ -184,8 +184,8 @@ $effect(() => {
         class="w-full rounded-md border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-primary-200-var focus:border-primary-200-var transition" 
         bind:value={space}
       >
-        <option>Workspace Main</option>
-        <option>Workspace 2</option>
+        <option>Great Hall</option>
+        <option>Recording Studio</option>
       </select>
     </div>
   </div>

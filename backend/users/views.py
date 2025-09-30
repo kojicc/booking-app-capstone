@@ -175,13 +175,17 @@ class LoginUser(APIView):
             }, status=status.HTTP_200_OK)
 
             cookie_max_age = 7 * 24 * 60 * 60  # 7 days in seconds
+            # Use secure cookies in production, but allow non-secure in DEBUG/local dev so
+            # browsers on http://localhost can store the cookie during development.
+            cookie_secure = not getattr(settings, 'DEBUG', False)
             response.set_cookie(
                 key='refresh_token',
                 value=refresh_token,
                 max_age=cookie_max_age,
                 httponly=True,
-                secure=True,  
-                samesite='Lax'
+                secure=cookie_secure,
+                samesite='Lax',
+                path='/'
             )
 
             return response

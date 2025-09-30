@@ -6,9 +6,6 @@
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 	import { page } from "$app/stores";
 	import Plus from "@lucide/svelte/icons/plus";
-	import { user } from '$lib/stores/user';
-	import AdminReservations from '$lib/components/reservations-admin.svelte';
-	import UserReservations from '$lib/components/reservations-user.svelte';
 	// Map path to label for breadcrumb
 	const pathToLabel = {
 		"/dashboard": "Dashboard",
@@ -23,8 +20,6 @@
 	};
 
 let pageLabel = $state('Reservations');
-
-// Svelte auto-subscription: use $user in template
 
 $effect(() => {
 	pageLabel = (pathToLabel as Record<string, string>)[$page.url.pathname] ?? 'Reservations';
@@ -58,12 +53,6 @@ $effect(() => {
 				</header>
 				<div class="flex flex-1 flex-col gap-4 p-4 pt-0">
 					<!-- Main content here -->
-					
-					{#if $user?.role === 'admin'}
-						<AdminReservations />
-					{:else}
-						<UserReservations />
-					{/if}
 				</div>
 	</Sidebar.Inset>
 </Sidebar.Provider>

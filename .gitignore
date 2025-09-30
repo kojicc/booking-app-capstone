@@ -6,6 +6,7 @@ node_modules
 .netlify
 .wrangler
 /front-end/.svelte-kit
+front-end/.svelte-kit/generated/server/internal.js
 /build
 
 # OS

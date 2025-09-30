@@ -3,6 +3,17 @@
 // This file is small and intentionally framework-agnostic so it can be reused
 // from Svelte components or SvelteKit load functions.
 
+//store the login access token in memory
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  accessToken = token;
+}
+
+export function getAccessToken() {
+  return accessToken;
+}
+
 export type BookingPayload = {
   bookingName: string;
   date: string; // ISO date or yyyy-mm-dd string
@@ -32,11 +43,42 @@ async function apiFetch(endpoint: string, options: RequestInit = {}) {
   const url = base.replace(/\/$/, '') + '/' + endpoint.replace(/^\//, '');
 
   const headers = new Headers(options.headers || {});
+
+  // Add Authorization header if access token exists
+  if (accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`);
+  }
+
   if (options.body && !(options.body instanceof FormData)) {
     headers.set('content-type', 'application/json');
   }
 
   const res = await fetch(url, { ...options, headers });
+
+  // Handle token expiration
+  if (res.status === 401) {
+    // Try to refresh the token
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      // Retry the original request with new token
+      headers.set('Authorization', `Bearer ${accessToken}`);
+      const retryRes = await fetch(url, { ...options, headers });
+      if (!retryRes.ok) {
+        const text = await retryRes.text().catch(() => '');
+        const err: any = new Error(`Request failed: ${retryRes.status} ${retryRes.statusText}`);
+        err.status = retryRes.status;
+        err.body = text;
+        throw err;
+      }
+      const ct = retryRes.headers.get('content-type') || '';
+      if (ct.includes('application/json')) return retryRes.json();
+      return retryRes.text();
+    } else {
+      // Refresh failed, clear everything
+      accessToken = null;
+      throw new Error('Session expired. Please login again.');
+    }
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -51,25 +93,77 @@ async function apiFetch(endpoint: string, options: RequestInit = {}) {
   return res.text();
 }
 
+async function tryRefreshToken(): Promise<boolean> {
+  try {
+    const response = await fetch(getBaseUrl() + '/api/users/refresh/', {
+      method: 'POST',
+      credentials: 'include' // Important: sends the httpOnly refresh cookie
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      accessToken = data.access;
+      return true;
+    }
+    return false;
+  } catch (error) {
+    return false;
+  }
+}
+
 export async function postBooking(payload: BookingPayload) {
   return apiFetch('/bookings', { method: 'POST', body: JSON.stringify(payload) });
 }
 
 export async function login(email: string, password: string) {
-  return apiFetch('/api/users/login/', {
+  const response = await apiFetch('/api/users/login/', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
     credentials: 'include'
   });
+
+    
+  // Store the access token
+  if (response.tokens?.access) {
+    setAccessToken(response.tokens.access);
+  }
+  
+  return response;
 }
 
-export async function register(payload: { email: string; password: string; first_name?: string; last_name?: string }) {
+export async function logout() {
+  try {
+    await apiFetch('/api/users/logout/', {
+      method: 'POST',
+      credentials: 'include'
+    });
+  } finally {
+    setAccessToken(null);
+  }
+}
+export async function register(payload: { email: string; password: string; first_name?: string; last_name?: string; username?: string; }) {
   // Registers a new user against the Django endpoint
   return apiFetch('/api/users/register/', {
     method: 'POST',
     body: JSON.stringify(payload),
     credentials: 'include'
   });
+}
+
+// Refresh the access token manually
+export async function refreshAccessToken() {
+  const response = await fetch(getBaseUrl() + '/api/users/refresh/', {
+    method: 'POST',
+    credentials: 'include'
+  });
+  
+  if (response.ok) {
+    const data = await response.json();
+    setAccessToken(data.access);
+    return data.access;
+  }
+  
+  throw new Error('Token refresh failed');
 }
 
 export default { postBooking, login, register };

@@ -34,7 +34,7 @@
         <p class="text-sm font-bold"> {value}</p>
     </div>
 {/snippet}
-<div class="flex flex-col space-y-3 rounded-large border p-4 rounded-xl shadow-sm max-w-sm hover:shadow-md transition">
+<div class="flex flex-col space-y-3 rounded-large border p-4 m-4 shadow-sm max-w-sm">
     <ConfirmationBadge status={bookingStatus.toLowerCase()}/>
     <h3 class="text-xl font-bold"> {bookingName} </h3>
     <p class="text-xs text-neutral-500"> {buildEventSubtitle()} </p>

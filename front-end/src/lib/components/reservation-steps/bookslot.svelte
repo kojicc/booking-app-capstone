@@ -23,67 +23,62 @@ let {
 
 let selectedTimes = $state<string[]>([]);
 
-// Mock availability data based on date
-function getAvailableTimeRanges(selectedDate: string) {
-  if (!selectedDate) return [];
-  
-  const dateObj = new Date(selectedDate);
-  const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 1 = Monday, etc.
-  
-  // Weekend availability (reduced hours)
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
-    return [
+// --- Backend-ready: async fetch for available time ranges ---
+async function fetchAvailableTimeRanges(selectedDate: string, selectedSpace: string) {
+  // Simulate backend delay
+  await new Promise(r => setTimeout(r, 200));
+
+  // Sample backend data for both spaces
+  const slots = {
+    "Great Hall": [
+      { label: "08:00 - 09:00" },
+      { label: "09:00 - 10:00" },
+      { label: "10:00 - 11:00" },
+      { label: "13:00 - 14:00" },
+      { label: "14:00 - 15:00" },
+      { label: "15:00 - 16:00", primetime: true },
+      { label: "16:00 - 17:00", primetime: true }
+    ],
+    "Recording Studio": [
       { label: "10:00 - 11:00" },
       { label: "11:00 - 12:00" },
       { label: "13:00 - 14:00" },
       { label: "14:00 - 15:00" },
       { label: "15:00 - 16:00", primetime: true },
-      { label: "16:00 - 17:00", primetime: true }
-    ];
+      { label: "16:00 - 17:00", primetime: true },
+      { label: "17:00 - 18:00" }
+    ]
+  };
+
+  // Simulate some unavailable slots based on date
+  const unavailable = new Set<string>();
+  if (selectedDate.endsWith('-01')) {
+    unavailable.add("09:00 - 10:00");
+    unavailable.add("14:00 - 15:00");
   }
-  
-  // Weekday availability
-  const baseRanges = [
-    { label: "08:00 - 09:00" },
-    { label: "09:00 - 10:00" },
-    { label: "10:00 - 11:00" },
-    { label: "11:00 - 12:00" },
-    { label: "13:00 - 14:00" },
-    { label: "14:00 - 15:00" },
-    { label: "15:00 - 16:00", primetime: true },
-    { label: "16:00 - 17:00", primetime: true },
-    { label: "17:00 - 18:00" }
-  ];
-  
-  // Mock some booked slots based on date
-  const dateStr = selectedDate;
-  const unavailableSlots = new Set<string>();
-  
-  // Some mock bookings for specific dates
-  if (dateStr.endsWith('-01') || dateStr.endsWith('-15')) {
-    unavailableSlots.add("09:00 - 10:00");
-    unavailableSlots.add("14:00 - 15:00");
-    unavailableSlots.add("16:00 - 17:00");
+  if (selectedSpace === "Recording Studio" && selectedDate.endsWith('-15')) {
+    unavailable.add("13:00 - 14:00");
   }
-  
-  if (dayOfWeek === 1) { // Mondays are busy
-    unavailableSlots.add("08:00 - 09:00");
-    unavailableSlots.add("11:00 - 12:00");
-  }
-  
-  if (dayOfWeek === 5) { // Fridays have limited morning slots
-    unavailableSlots.add("08:00 - 09:00");
-    unavailableSlots.add("09:00 - 10:00");
-  }
-  
-  return baseRanges.filter(range => !unavailableSlots.has(range.label));
+
+  // Return only available slots
+  return (slots[selectedSpace as keyof typeof slots] || []).filter(slot => !unavailable.has(slot.label));
 }
 
-// Reactive time ranges based on selected date
+// --- Reactive time ranges based on selected date and space ---
 let timeRanges = $state<{ label: string; primetime?: boolean }[]>([]);
+let loadingSlots = $state(false);
 
 $effect(() => {
-  timeRanges = getAvailableTimeRanges(date);
+  async function loadSlots() {
+    if (date && space) {
+      loadingSlots = true;
+      timeRanges = await fetchAvailableTimeRanges(date, space);
+      loadingSlots = false;
+    } else {
+      timeRanges = [];
+    }
+  }
+  loadSlots();
 });
 
 // Function to extract start and end times from a time range label
@@ -116,14 +111,16 @@ function toggleTime(label: string) {
 
 // Track previous date to detect changes
 let previousDate = $state("");
+let previousSpace = $state("");
 
-// Clear selections when date changes
+// Clear selections when date or space changes
 $effect(() => {
-  if (date !== previousDate) {
+  if (date !== previousDate || space !== previousSpace) {
     selectedTimes = [];
     startTime = "";
     endTime = "";
     previousDate = date;
+    previousSpace = space;
     primetimeSelected = false;
   }
 });
@@ -192,17 +189,21 @@ $effect(() => {
 
   <div>
     <div class="block text-sm font-medium mb-1">Available Time Ranges</div>
-    {#if !hasDate}
+    {#if loadingSlots}
+      <div class="text-sm text-gray-500 mb-4 p-3 bg-gray-50 rounded-lg">
+        Loading available slots...
+      </div>
+    {:else if !hasDate}
       <div class="text-sm text-gray-500 mb-4 p-3 bg-gray-50 rounded-lg">
         Please select a date to view available time slots.
       </div>
     {:else if !hasAvailableSlots}
       <div class="text-sm text-red-600 mb-4 p-3 bg-red-50 rounded-lg">
-        No time slots available for the selected date. Please choose a different date.
+        No time slots available for the selected date and space. Please choose a different date or space.
       </div>
     {:else}
       <div class="text-xs text-green-700 mb-2">
-        * Primetime Hours needs approval prior to booking. Your booking wont be confirmed unless approved by admin.
+        * Primetime Hours needs approval prior to booking. Your booking won't be confirmed unless approved by admin.
       </div>
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3">
         {#each timeRanges as timeSlot}
@@ -222,7 +223,7 @@ $effect(() => {
               class={isSelected
                 ? 'bg-red-600 hover:bg-red-700 text-white rounded-md px-8 py-2 font-semibold text-base shadow transition-colors' 
                 : 'bg-emerald-600 hover:bg-emerald-700 text-white rounded-md px-8 py-2 font-semibold text-base shadow transition-colors'}
-              onclick={() => toggleTime(timeSlot.label)}
+              on:click={() => toggleTime(timeSlot.label)}
             >
               {isSelected ? 'Cancel' : 'Select'}
             </button>

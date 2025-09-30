@@ -6,8 +6,9 @@
     import { goto } from "$app/navigation";
     import { login as apiLogin } from "$lib/api/index.js";
 
-        let email = "";
-        let password = "";
+        let name: string = "";
+        let email: string = "";
+        let password: string = "";
         let passwordError = "";
         let loading = false;
 
@@ -45,11 +46,15 @@
 
 <Card.Root class="mx-auto w-full max-w-sm ">
     <Card.Header class="text-center">
-        <Card.Title class="text-2xl text-primary-300">Login</Card.Title>
-        <Card.Description>Nice to see you again!</Card.Description>
+        <Card.Title class="text-2xl text-primary-300">Register</Card.Title>
+        <Card.Description>Welcome to B-Hive!</Card.Description>
     </Card.Header>
     <Card.Content>
         <form class="grid gap-4" on:submit={handleSubmit} autocomplete="on">
+            <div class="grid gap-2">
+                <Label for="name">Name</Label>
+                <Input id="name" type="text" placeholder="John Doe" required bind:value={name} />
+            </div>
             <div class="grid gap-2">
                 <Label for="email">Email</Label>
                 <Input id="email" type="email" placeholder="m@example.com" required bind:value={email} />
@@ -71,7 +76,7 @@
                     <svg class="animate-spin h-4 w-4 mr-2 inline-block align-middle" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
                     Loading...
                 {:else}
-                    Login
+                    Register
                 {/if}
             </Button>
             <Button variant="outline" class="w-full" type="button">
@@ -84,8 +89,8 @@
                 Login with Google
             </Button>
             <div class="mt-4 text-center text-sm">
-                Don't have an account?
-                <a href="/register" class="underline" on:click|preventDefault={() => goto('/register')}> Sign up </a>
+               Have an account?
+                <a href="/login" class="underline" on:click|preventDefault={() => goto('/login')}> Sign in </a>
             </div>
         </form>
     </Card.Content>

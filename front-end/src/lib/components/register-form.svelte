@@ -4,7 +4,7 @@
     import { Input } from "$lib/components/ui/input/index.js";
     import { Label } from "$lib/components/ui/label/index.js";
     import { goto } from "$app/navigation";
-    import { login as apiLogin } from "$lib/api/index.js";
+    import { register as apiRegister } from "$lib/api/index.js";
 
         let name: string = "";
         let email: string = "";
@@ -22,7 +22,7 @@
         loading = true;
         try {
             try {
-                    await apiLogin(email, password);
+                    await apiRegister({email, password});
                     //   auth tokens  (localStorage/cookies)
 
             } catch (err) {
@@ -51,10 +51,10 @@
     </Card.Header>
     <Card.Content>
         <form class="grid gap-4" on:submit={handleSubmit} autocomplete="on">
-            <div class="grid gap-2">
+            <!-- <div class="grid gap-2">
                 <Label for="name">Name</Label>
                 <Input id="name" type="text" placeholder="John Doe" required bind:value={name} />
-            </div>
+            </div> -->
             <div class="grid gap-2">
                 <Label for="email">Email</Label>
                 <Input id="email" type="email" placeholder="m@example.com" required bind:value={email} />

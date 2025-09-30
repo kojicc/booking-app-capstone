@@ -56,7 +56,20 @@ export async function postBooking(payload: BookingPayload) {
 }
 
 export async function login(email: string, password: string) {
-  return apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+  return apiFetch('/api/users/login/', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+    credentials: 'include'
+  });
 }
 
-export default { postBooking, login };
+export async function register(payload: { email: string; password: string; first_name?: string; last_name?: string }) {
+  // Registers a new user against the Django endpoint
+  return apiFetch('/api/users/register/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    credentials: 'include'
+  });
+}
+
+export default { postBooking, login, register };

@@ -25,16 +25,54 @@ class RegisterUser(APIView):
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+            errors = serializer.errors
+            error_message = "Registration failed. Please check your input."
+            
+            if isinstance(errors, dict):
+                if 'email' in errors:
+                    email_errors = errors['email']
+                    if any('already exists' in str(err).lower() or 'unique' in str(err).lower() for err in email_errors):
+                        error_message = "An account with this email already exists. Please use a different email or try logging in."
+                    elif any('required' in str(err).lower() for err in email_errors):
+                        error_message = "Email is required."
+                    elif any('valid' in str(err).lower() or 'format' in str(err).lower() for err in email_errors):
+                        error_message = "Please enter a valid email address."
+                    else:
+                        error_message = f"Email: {email_errors[0]}"
+                        
+                elif 'password' in errors:
+                    password_errors = errors['password']
+                    if any('required' in str(err).lower() for err in password_errors):
+                        error_message = "Password is required."
+                    else:
+                        error_message = f"Password: {password_errors[0]}"
+                        
+                elif 'username' in errors:
+                    username_errors = errors['username']
+                    if any('already exists' in str(err).lower() or 'unique' in str(err).lower() for err in username_errors):
+                        error_message = "This username is already taken. Please choose a different one."
+                    else:
+                        error_message = f"Username: {username_errors[0]}"
+                        
+                else:
+                    first_key = next(iter(errors))
+                    first_error = errors[first_key][0]
+                    error_message = f"{first_key.title()}: {first_error}"
+
+            return Response({"errMessage": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
+            error_str = str(e).lower()
+            if 'unique constraint' in error_str and 'email' in error_str:
+                return Response({"errMessage": "An account with this email already exists."}, status=status.HTTP_400_BAD_REQUEST)
+            elif 'unique constraint' in error_str and 'username' in error_str:
+                return Response({"errMessage": "This username is already taken."}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"errMessage": "An error occurred during registration. Please try again."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+   
 
 class UserList(APIView):
-    # Only admins may list users. We return minimal/aggregated info to avoid leaking
-    # personal data in bulk responses.
-    # Use AllowAny here and perform explicit checks inside get() so we can
-    # return 401 for unauthenticated requests (DRF permission checks run before
-    # the view and may return 403 instead of 401 depending on auth backend).
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
@@ -59,15 +97,15 @@ class UserList(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    def post(self, request):
-        try:
-            serializer = UserSerializer(data=request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    # def post(self, request):
+    #     try:
+    #         serializer = UserSerializer(data=request.data)
+    #         if serializer.is_valid():
+    #             serializer.save()
+    #             return Response(serializer.data, status=status.HTTP_201_CREATED)
+    #         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    #     except Exception as e:
+    #         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UserDetail(APIView):
     def get(self, request, pk):

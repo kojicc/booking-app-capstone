@@ -26,13 +26,7 @@ export type BookingPayload = {
 };
 
 function getBaseUrl(): string | undefined {
-  // Prefer VITE_API_BASE for client-side access. If you prefer SvelteKit's $env,
-  // swap this to use $env/static/public or $env/dynamic/public accordingly.
-  // Vite exposes env vars prefixed with VITE_ to client-side code via import.meta.env.
-  // Example .env: VITE_API_BASE=https://api.example.com
-  // If undefined, caller should fallback to mocked behaviour.
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore - import.meta.env typing varies by setup
+  
   return (import.meta.env && import.meta.env.VITE_API_BASE) || undefined;
 }
 

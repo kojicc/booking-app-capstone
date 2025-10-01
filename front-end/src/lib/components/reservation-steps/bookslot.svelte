@@ -223,7 +223,7 @@ $effect(() => {
               class={isSelected
                 ? 'bg-red-600 hover:bg-red-700 text-white rounded-md px-8 py-2 font-semibold text-base shadow transition-colors' 
                 : 'bg-emerald-600 hover:bg-emerald-700 text-white rounded-md px-8 py-2 font-semibold text-base shadow transition-colors'}
-              on:click={() => toggleTime(timeSlot.label)}
+                            onclick={() => toggleTime(timeSlot.label)}
             >
               {isSelected ? 'Cancel' : 'Select'}
             </button>

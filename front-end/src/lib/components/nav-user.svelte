@@ -9,6 +9,25 @@
 	import CreditCardIcon from "@lucide/svelte/icons/credit-card";
 	import LogOutIcon from "@lucide/svelte/icons/log-out";
 	import SparklesIcon from "@lucide/svelte/icons/sparkles";
+	import { logout as apiLogout } from "$lib/api/index.js";
+	import { clearUser } from "$lib/stores/user";
+	import { goto } from "$app/navigation";
+
+	async function handleLogout(event: any) {
+		// preventDefault if possible (e.g., when the menu emits a select event)
+		try {
+			event?.preventDefault?.();
+		} catch (e) {
+			// ignore
+		}
+		try {
+			await apiLogout();
+		} catch (err) {
+			// ignore logout errors but proceed to clear client state
+		}
+		clearUser();
+		goto('/login-01');
+	}
 
 	let { user }: { user: { name: string; email: string; avatar: string } } = $props();
 	const sidebar = useSidebar();
@@ -78,8 +97,10 @@
 				</DropdownMenu.Group>
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item>
-					<LogOutIcon />
-					Log out
+					<button class="w-full text-left flex items-center gap-2" onclick={handleLogout}>
+						<LogOutIcon />
+						<span>Log out</span>
+					</button>
 				</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>

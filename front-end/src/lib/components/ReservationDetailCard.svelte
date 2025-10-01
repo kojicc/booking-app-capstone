@@ -64,8 +64,8 @@
 
     {#if role === 'admin'}
     <div class="flex space-x-2 mt-2">
-        <button class="px-3 py-1 bg-primary-200-var text-white rounded-md" on:click={handleConfirm}>Confirm</button>
-        <button class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md" on:click={handleReject}>Reject</button>
+    <button class="px-3 py-1 bg-primary-200-var text-white rounded-md" onclick={handleConfirm}>Confirm</button>
+    <button class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md" onclick={handleReject}>Reject</button>
     </div>
     {/if}
 </div>

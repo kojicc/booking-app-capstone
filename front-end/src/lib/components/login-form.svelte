@@ -61,7 +61,7 @@
         <Card.Description>Nice to see you again!</Card.Description>
     </Card.Header>
     <Card.Content>
-        <form class="grid gap-4" on:submit={handleSubmit} autocomplete="on">
+    <form class="grid gap-4" onsubmit={handleSubmit} autocomplete="on">
             <div class="grid gap-2">
                 <Label for="email">Email</Label>
                 <Input id="email" type="email" placeholder="m@example.com" required bind:value={email} />
@@ -69,9 +69,9 @@
             <div class="grid gap-2">
                 <div class="flex items-center">
                     <Label for="password">Password</Label>
-                    <a href="#" class="ml-auto inline-block text-sm underline">
+                    <button type="button" class="ml-auto inline-block text-sm underline" onclick={(e) => { e.preventDefault(); /* TODO: show reset password */ }}>
                         Forgot your password?
-                    </a>
+                    </button>
                 </div>
                 <Input id="password" type="password" required bind:value={password} />
                     {#if passwordError}
@@ -97,7 +97,7 @@
             </Button>
             <div class="mt-4 text-center text-sm">
                 Don't have an account?
-                <a href="/register" class="underline" on:click|preventDefault={() => goto('/register')}> Sign up </a>
+                <a href="/register" class="underline" onclick={(e) => { e.preventDefault(); goto('/register'); }}> Sign up </a>
             </div>
         </form>
     </Card.Content>

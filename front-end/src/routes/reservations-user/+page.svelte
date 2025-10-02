@@ -1,5 +1,4 @@
-
-<script lang="ts">
+<!-- <script lang="ts">
 	import AppSidebar from "$lib/components/app-sidebar.svelte";
 	import * as Breadcrumb from "$lib/components/ui/breadcrumb/index.js";
 	import { Separator } from "$lib/components/ui/separator/index.js";
@@ -30,9 +29,6 @@ $effect(() => {
 	pageLabel = (pathToLabel as Record<string, string>)[$page.url.pathname] ?? 'Reservations';
 });
 
-console.log("in reservation:");
-console.log($user);
-
 </script>
 
 <Sidebar.Provider>
@@ -60,10 +56,6 @@ console.log($user);
 					</button>
 				</header>
 				<div class="flex flex-1 flex-col gap-4 p-4 pt-0">
-					<!-- Main content here -->
-					 <!-- TESTING LOGIN -->
-						<h1> You are logged in as: </h1>
-						<p> Name: {$user?.email}</p>
 					{#if $user?.role === 'admin'}
 						
 						<AdminReservations />
@@ -73,4 +65,4 @@ console.log($user);
 					{/if}
 				</div>
 	</Sidebar.Inset>
-</Sidebar.Provider>
+</Sidebar.Provider> -->

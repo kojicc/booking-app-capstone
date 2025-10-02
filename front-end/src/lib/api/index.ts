@@ -51,18 +51,16 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
 	// Handle token expiration
 	if (res.status === 401) {
-		// Try to refresh the token
+		// Attempt token refresh
 		const refreshed = await tryRefreshToken();
 		if (refreshed) {
 			// Retry the original request with new token
 			headers.set('Authorization', `Bearer ${accessToken}`);
 			const retryRes = await fetch(url, { ...options, headers });
 			if (!retryRes.ok) {
+				accessToken = null; // Clear the token as it might be invalid
 				const text = await retryRes.text().catch(() => '');
-				const err: any = new Error(`Request failed: ${retryRes.status} ${retryRes.statusText}`);
-				err.status = retryRes.status;
-				err.body = text;
-				throw err;
+				throw new Error('Authentication failed. Please login again.');
 			}
 			const ct = retryRes.headers.get('content-type') || '';
 			if (ct.includes('application/json')) return retryRes.json();
@@ -89,17 +87,23 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
 async function tryRefreshToken(): Promise<boolean> {
 	try {
-		const response = await fetch(getBaseUrl() + '/api/users/refresh/', {
+		const response = await fetch(getBaseUrl() + 'api/users/refresh/', {
 			method: 'POST',
 			credentials: 'include' // Important: sends the httpOnly refresh cookie
 		});
 
 		if (response.ok) {
 			const data = await response.json();
-			accessToken = data.access;
-			return true;
+			if (data.access) {
+				accessToken = data.access;
+				return true;
+			} else {
+				return false;
+			}
+		} else {
+			const errorText = await response.text().catch(() => 'Unknown error');
+			return false;
 		}
-		return false;
 	} catch (error) {
 		return false;
 	}

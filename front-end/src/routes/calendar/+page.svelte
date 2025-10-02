@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AppSidebar from "$lib/components/app-sidebar.svelte";
+	import AuthGuard from "$lib/components/AuthGuard.svelte";
 	import * as Breadcrumb from "$lib/components/ui/breadcrumb/index.js";
 	import { Separator } from "$lib/components/ui/separator/index.js";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
@@ -8,9 +9,14 @@
 	import ReservationModal from "$lib/components/reservation-modal.svelte";
 	import SuccessModal from "$lib/components/success-modal.svelte";
 	import AwaitingConfirmation from "$lib/components/awaiting-confirmation.svelte";
+	// @ts-ignore - Event calendar library has no type definitions
 	import {Calendar, TimeGrid} from '@event-calendar/core';
+	import {showReservationModal, showSuccessModal, showAwaitingModal} from '$lib/stores/reservation';
+
+
 
     let options = $state({
+		
         view: 'timeGridWeek',
         events: [
             // your list of events
@@ -28,9 +34,7 @@
 		"/help": "Get Help",
 	};
 
-	let showReservationModal = $state(false);
-	let showSuccessModal = $state(false);
-	let showAwaitingModal = $state(false);
+	
 
 	// Concrete page label to satisfy TypeScript when indexing pathToLabel
 	let pageLabel = $state('Calendar');
@@ -40,20 +44,20 @@
 	});
 
 function handleModalClose() {
-    showReservationModal = false;
+    showReservationModal.set(false);
 }
 
 	function handleReservationSuccess(bookedTime?: string | Date | number | null, primetime?: boolean) {
 		// ReservationModal calls this via onSuccess after confirm
-		showReservationModal = false;
+		showReservationModal.set(false);
 		lastBookedTime = bookedTime ?? null;
 		// ensure only the correct modal is shown
-		showSuccessModal = false;
-		showAwaitingModal = false;
+		showSuccessModal.set(false);
+		showAwaitingModal.set(false);
 		if (primetime) {
-			showAwaitingModal = true;
+			showAwaitingModal.set(true);
 		} else {
-			showSuccessModal = true;
+			showSuccessModal.set(true);
 		}
 	}
 
@@ -61,6 +65,7 @@ function handleModalClose() {
 	let lastBookedTime = $state<string | Date | number | null>(null);
 </script>
 
+<AuthGuard>
 <Sidebar.Provider>
 	<AppSidebar />
 	<Sidebar.Inset>
@@ -80,23 +85,25 @@ function handleModalClose() {
 					</Breadcrumb.Root>
 				</div>
 			</div>
-			<button class="bg-primary-200-var hover:bg-primary-300-var text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2 text-sm shadow transition-colors" onclick={() => showReservationModal = true}>
+			<button class="bg-primary-200-var hover:bg-primary-300-var text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2 text-sm shadow transition-colors" onclick={() => showReservationModal.set(true)}>
 				<Plus class="h-4 w-4" />
 				New Reservation
 			</button>
 		</header>
 
+		<!-- @ts-ignore - Calendar component from JS library -->
 		<Calendar plugins={[TimeGrid]} {options} />
 
-		{#if showReservationModal}
-			<ReservationModal open={showReservationModal} onClose={handleModalClose} onSuccess={handleReservationSuccess} />
+		{#if $showReservationModal}
+			<ReservationModal open={$showReservationModal} onClose={handleModalClose} onSuccess={handleReservationSuccess} />
 		{/if}
 
-		{#if showSuccessModal}
-			<SuccessModal open={showSuccessModal} onClose={() => (showSuccessModal = false)} bookedTime={lastBookedTime} />
+		{#if $showSuccessModal}
+			<SuccessModal open={$showSuccessModal} onClose={() => $showSuccessModal = false } bookedTime={lastBookedTime} />
 		{/if}
-		{#if showAwaitingModal}
-			<AwaitingConfirmation open={showAwaitingModal} onClose={() => (showAwaitingModal = false)} bookedTime={lastBookedTime} />
+		{#if $showAwaitingModal}
+			<AwaitingConfirmation open={$showAwaitingModal} onClose={() => $showAwaitingModal = false} bookedTime={lastBookedTime} />
 		{/if}
 	</Sidebar.Inset>
 </Sidebar.Provider>
+</AuthGuard>

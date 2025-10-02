@@ -379,7 +379,6 @@ class ReservationApprovalView(APIView):
             
             reservation.save()
             
-            # Log the action
             ReservationAuditLog.objects.create(
                 reservation=reservation,
                 action=log_action,
@@ -422,7 +421,7 @@ class ReservationApprovalView(APIView):
 
 class PrimeTimeSettingsView(APIView):
     """Admin view to manage primetime settings"""
-    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
     
     def get(self, request):
         settings = PrimeTimeSettings.objects.all()
@@ -594,7 +593,6 @@ class TradeRequestDetailView(APIView):
 # ===================== SETTINGS VIEWS =====================
 
 class CalendarSettingsView(APIView):
-    """Admin view to manage calendar settings"""
     permission_classes = [permissions.IsAuthenticated, IsAdminUser]
     
     def get(self, request):
@@ -625,7 +623,6 @@ class UserDashboardView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        """Get dashboard data for current user"""
         user = request.user
         today = date.today()
 
@@ -667,7 +664,6 @@ class AdminDashboardView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsAdminUser]
 
     def get(self, request):
-        """Get dashboard data for admin users"""
         today = date.today()
 
         # Pending approvals

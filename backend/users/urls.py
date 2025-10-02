@@ -1,5 +1,5 @@
 from django.urls import path, include
-from .views import UserList, UserDetail, RegisterUser, LoginUser, RefreshTokenView, LogoutView
+from .views import UserList, UserDetail, RegisterUser, LoginUser, RefreshTokenView, LogoutView, CurrentUserView
 
 urlpatterns = [
     # Authentication endpoints
@@ -7,6 +7,7 @@ urlpatterns = [
     path("login/", LoginUser.as_view(), name="user-login"),
     path("refresh/", RefreshTokenView.as_view(), name="token-refresh"),
     path("logout/", LogoutView.as_view(), name="user-logout"),
+    path("me/", CurrentUserView.as_view(), name="current-user"),
 
     # User CRUD endpoints
     path("", UserList.as_view(), name="user-list"),

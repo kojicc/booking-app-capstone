@@ -55,7 +55,6 @@
 	}: ComponentProps<typeof Sidebar.Root> = $props();
 
 	// Filter navMain for role-based access
-	// compute navMainFiltered and update via $effect (runes-friendly)
 	let navMainFiltered = $state(data.navMain);
 
 	// ensure NavUser always receives required fields
@@ -67,8 +66,7 @@
 </script>
 
 <Sidebar.Root {collapsible} {...restProps}>
-	<!-- Sidebar.Header removed: no teams -->
-	<Sidebar.Content >
+	<Sidebar.Content>
 		<NavMain items={navMainFiltered} currentPath={$page.url.pathname} />
 	</Sidebar.Content>
 	<Sidebar.Footer>

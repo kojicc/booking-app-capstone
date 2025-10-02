@@ -1,5 +1,9 @@
 <script>
-  // Import the login-01 component
-  import Login01 from './login-01/+page.svelte';
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+  
+  // Redirect to landing page
+  onMount(() => {
+    goto('/landing');
+  });
 </script>
-<Login01 />

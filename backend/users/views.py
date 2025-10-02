@@ -150,6 +150,19 @@ class UserDetail(APIView):
         user.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+class CurrentUserView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            if not request.user or not request.user.is_authenticated:
+                return Response({"error": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            serializer = UserSerializer(request.user)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class LoginUser(APIView):
     permission_classes = []  # Allow unauthenticated access
 
@@ -207,8 +220,10 @@ class LoginUser(APIView):
                 "user": {
                     "id": user.id,
                     "email": user.email,
+                    "username": getattr(user, 'username', user.email),
                     "first_name": getattr(user, 'first_name', ''),
-                    "last_name": getattr(user, 'last_name', '')
+                    "last_name": getattr(user, 'last_name', ''),
+                    "role": user.role  # Include role so frontend can check admin vs user
                 }
             }, status=status.HTTP_200_OK)
 

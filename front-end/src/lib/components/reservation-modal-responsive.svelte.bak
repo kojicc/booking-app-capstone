@@ -1,0 +1,730 @@
+<script lang="ts">
+// ===================== IMPORTS =====================
+import { MediaQuery } from "svelte/reactivity";
+import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Drawer from "$lib/components/ui/drawer/index.js";
+import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
+import { Label } from "$lib/components/ui/label/index.js";
+import { Input } from "$lib/components/ui/input/index.js";
+import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
+import * as Select from "$lib/components/ui/select";
+import * as Popover from "$lib/components/ui/popover";
+import * as Calendar from "$lib/components/ui/calendar";
+import { Calendar as CalendarIcon } from "lucide-svelte";
+import { DateFormatter, type DateValue, getLocalTimeZone } from "@internationalized/date";
+import { cn } from "$lib/utils";
+import { createReservation, getCalendar, type TimeSlot, type CalendarDay } from "$lib/api/reservation";
+import { showSuccessModal } from '$lib/stores/reservation';
+import { toast } from 'svelte-sonner';
+
+// ===================== PROPS =====================
+interface Props {
+  open?: boolean;
+  onClose?: () => void;
+  onSuccess?: (bookedTime?: string | Date | number | null, primetime?: boolean) => void;
+}
+
+let { open = $bindable(false), onClose, onSuccess }: Props = $props();
+
+// ===================== RESPONSIVE DETECTION =====================
+// Gamitin ang MediaQuery para sa responsive - desktop shows Dialog, mobile shows Drawer
+const isDesktop = new MediaQuery("(min-width: 768px)");
+const id = crypto.randomUUID();
+
+// ===================== FORM STATE =====================
+// Lahat ng data ng reservation form, naka-centralize dito para madaling access
+
+let step = $state(1); // Current step: 1=Date/Time, 2=Addons, 3=Review
+let loading = $state(false);
+let errorMessage = $state('');
+
+// Basic info
+let bookingName = $state("");
+let date = $state("");
+let space = $state("Workspace Main");
+
+// Time selection
+let startTime = $state("");
+let endTime = $state("");
+let selectedTimes = $state<string[]>([]);
+let primetimeSelected = $state(false);
+
+// Addons (for step 2)
+let selectedAddons = $state<string[]>([]);
+
+// Calendar at available slots
+let availableSlots = $state<TimeSlot[]>([]);
+let calendarData = $state<CalendarDay[]>([]);
+let loadingSlots = $state(false);
+
+// Pricing calculation
+let totalHours = $state(0);
+let totalCost = $state(0);
+
+// ===================== DATE PICKER STATE =====================
+const df = new DateFormatter("en-US", { dateStyle: "long" });
+let value = $state<DateValue | undefined>();
+
+// I-convert ang selected date value to ISO string para sa API
+$effect(() => {
+  if (value) {
+    date = value.toString(); // format: YYYY-MM-DD
+    // Pag nag-change ang date, kunin agad ang available slots
+    loadAvailableSlots(date);
+  }
+});
+
+// ===================== VALIDATION =====================
+// Check kung pwede na mag-proceed sa next step
+let canProceedStep1 = $state(false);
+
+$effect(() => {
+  // Para sa step 1: kailangan may booking name, date, at may selected time
+  canProceedStep1 = !!(
+    bookingName && 
+    bookingName.trim().length > 0 && 
+    date && 
+    startTime && 
+    endTime && 
+    totalHours > 0
+  );
+});
+
+// ===================== PRICING CALCULATION =====================
+// Auto-calculate total hours at cost kapag nag-change ang start/end time
+$effect(() => {
+  if (!startTime || !endTime) {
+    totalHours = 0;
+    totalCost = 0;
+    return;
+  }
+
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
+
+  const startMinutes = startHour * 60 + startMin;
+  const endMinutes = endHour * 60 + endMin;
+
+  totalHours = (endMinutes - startMinutes) / 60;
+  if (totalHours < 0) totalHours += 24; // Handle overnight bookings
+  totalCost = totalHours * 500; // PHP 500 per hour
+});
+
+// ===================== CALENDAR & TIME SLOTS =====================
+// I-load ang available time slots for selected date
+async function loadAvailableSlots(selectedDate: string) {
+  if (!selectedDate) return;
+  
+  loadingSlots = true;
+  try {
+    // Kunin ang calendar data from backend
+    const response = await getCalendar(selectedDate, selectedDate);
+    calendarData = response.calendar;
+    
+    // Extract available slots for the selected date
+    const dayData = calendarData.find(day => day.date === selectedDate);
+    if (dayData) {
+      availableSlots = dayData.available_slots || [];
+    } else {
+      availableSlots = [];
+    }
+  } catch (error) {
+    console.error('Error loading time slots:', error);
+    toast.error('Failed to load available time slots');
+    availableSlots = [];
+  } finally {
+    loadingSlots = false;
+  }
+}
+
+// Toggle time slot selection - pwedeng mag-select ng multiple slots
+function toggleTimeSlot(timeSlot: TimeSlot) {
+  const slotKey = `${timeSlot.start_time} - ${timeSlot.end_time}`;
+  const index = selectedTimes.indexOf(slotKey);
+  
+  if (index > -1) {
+    // Already selected, remove it
+    selectedTimes = selectedTimes.filter((_, i) => i !== index);
+  } else {
+    // Add to selection
+    selectedTimes = [...selectedTimes, slotKey];
+    
+    // Update start/end time based on selection
+    if (selectedTimes.length === 1) {
+      startTime = timeSlot.start_time.substring(0, 5); // Remove seconds
+      endTime = timeSlot.end_time.substring(0, 5);
+    } else {
+      // Multiple slots: extend the end time
+      endTime = timeSlot.end_time.substring(0, 5);
+    }
+    
+    // Check if primetime
+    if (timeSlot.type === 'PRIMETIME') {
+      primetimeSelected = true;
+    }
+  }
+}
+
+// ===================== CUSTOM TIME INPUT HANDLING =====================
+// Allow users to manually input custom times
+function handleCustomTimeChange() {
+  // Clear slot selections pag manual input
+  selectedTimes = [];
+  
+  // Validate na start < end
+  if (startTime && endTime) {
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    
+    if (startHour * 60 + startMin >= endHour * 60 + endMin) {
+      toast.error('End time must be after start time');
+      endTime = '';
+    }
+  }
+}
+
+// ===================== STEP NAVIGATION =====================
+function nextStep() {
+  if (step === 1 && !canProceedStep1) {
+    return; // Disabled na yung button, pero double check pa rin
+  }
+  if (step < 3) step += 1;
+}
+
+function prevStep() {
+  if (step > 1) step -= 1;
+}
+
+function closeModal() {
+  open = false;
+  step = 1;
+  // Reset form
+  bookingName = "";
+  date = "";
+  startTime = "";
+  endTime = "";
+  selectedTimes = [];
+  selectedAddons = [];
+  value = undefined;
+  onClose?.();
+}
+
+// ===================== FORM SUBMISSION =====================
+// Final step: mag-submit ng reservation sa backend
+async function handleConfirm() {
+  loading = true;
+  errorMessage = '';
+
+  try {
+    // Gawa ng payload para sa API
+    const created = await createReservation({
+      user: bookingName, // TODO: replace with actual user ID
+      date,
+      start_time: startTime + ':00', // Add seconds
+      end_time: endTime + ':00',
+      reservation_type: primetimeSelected ? "PRIMETIME" : "FREE_FOR_ALL",
+      notes: selectedAddons.join(', ') // Convert addons to notes
+    });
+
+    // Success! Show success modal at close
+    showSuccessModal.set(true);
+    toast.success('Reservation created successfully! ' + (primetimeSelected ? 'Waiting for admin approval.' : ''));
+    onSuccess?.(created.start_time, primetimeSelected);
+    closeModal();
+  } catch (err: any) {
+    console.error('Booking failed:', err);
+    errorMessage = err?.message || 'Booking failed. Please try again.';
+    toast.error(errorMessage);
+  } finally {
+    loading = false;
+  }
+}
+
+// Reset step pag nag-close ang modal
+$effect(() => {
+  if (!open) {
+    step = 1;
+    errorMessage = '';
+  }
+});
+
+let stepTitles = $derived([1, 2, 3].map(stepNum => ({
+  num: stepNum,
+  title: getStepTitle(stepNum),
+  active: step === stepNum
+})));
+
+
+</script>
+
+<!-- ===================== RESPONSIVE LAYOUT ===================== -->
+<!-- Desktop: Dialog | Mobile: Drawer -->
+
+{#if isDesktop.current}
+  <!-- DESKTOP VERSION - Dialog -->
+  <Dialog.Root bind:open>
+    <Dialog.Trigger class={buttonVariants({ variant: "outline" })}>
+      New Reservation
+    </Dialog.Trigger>
+    <Dialog.Content class="sm:max-w-[600px] max-h-[90vh] flex flex-col">
+      <Dialog.Header>
+        <Dialog.Title>New Reservation</Dialog.Title>
+        <Dialog.Description>
+          <!-- Breadcrumb steps -->
+          <div class="flex items-center gap-2 mt-2 text-sm">
+            {#each stepTitles as stepItem, i}
+              <span class={stepItem.active ? 'font-bold text-foreground' : 'text-muted-foreground'}>
+                {stepItem.title}
+              </span>
+              {#if i < stepTitles.length - 1}
+                <span class="mx-1 text-muted-foreground">›</span>
+              {/if}
+            {/each}
+          </div>
+        </Dialog.Description>
+      </Dialog.Header>
+
+      <!-- Form content with scroll -->
+      <ScrollArea class="flex-1 -mx-6 px-6">
+        <div class="space-y-6 py-4">
+          {#if step === 1}
+            <!-- STEP 1: DATE & TIME -->
+            <div class="grid gap-4">
+              <div class="grid gap-2">
+                <Label for="booking-name-{id}">Booking Name</Label>
+                <Input
+                  id="booking-name-{id}"
+                  placeholder="e.g., Build Day Workshop"
+                  bind:value={bookingName}
+                />
+              </div>
+
+              <div class="grid gap-2">
+                <Label>Date</Label>
+                <Popover.Root>
+                  <Popover.Trigger class={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "justify-start text-left font-normal",
+                    !value && "text-muted-foreground"
+                  )}>
+                    <CalendarIcon class="mr-2 h-4 w-4" />
+                    {value ? df.format(value.toDate(getLocalTimeZone())) : "Pick a date"}
+                  </Popover.Trigger>
+                  <Popover.Content class="w-auto p-0">
+                    <Calendar.Calendar type="single" bind:value fixedWeeks />
+                  </Popover.Content>
+                </Popover.Root>
+              </div>
+
+              <div class="grid gap-2">
+                <Label>Space</Label>
+                <Select.Root type="single" bind:value={space}>
+                  <Select.Trigger>
+                    <span>{space}</span>
+                  </Select.Trigger>
+                  <Select.Content>
+                    <Select.Item value="Great Hall">Great Hall</Select.Item>
+                    <Select.Item value="Recording Studio">Recording Studio</Select.Item>
+                    <Select.Item value="Workspace Main">Workspace Main</Select.Item>
+                  </Select.Content>
+                </Select.Root>
+              </div>
+
+              {#if date}
+                <div class="grid gap-2">
+                  <Label>Available Time Slots</Label>
+                  {#if loadingSlots}
+                    <div class="text-sm text-muted-foreground py-4 text-center">
+                      Loading available slots...
+                    </div>
+                  {:else if availableSlots.length === 0}
+                    <div class="text-sm text-destructive py-4 text-center">
+                      No slots available for this date
+                    </div>
+                  {:else}
+                    <ScrollArea class="h-48 rounded-md border p-2">
+                      <div class="grid grid-cols-2 gap-2">
+                        {#each availableSlots as timeSlot}
+                          {@const slotKey = `${timeSlot.start_time} - ${timeSlot.end_time}`}
+                          {@const isSelected = selectedTimes.includes(slotKey)}
+                          {@const isPrimetime = timeSlot.type === 'PRIMETIME'}
+                          <button
+                            type="button"
+                            class={cn(
+                              "relative p-3 rounded-md border text-left transition-all",
+                              isSelected && "border-primary bg-primary/10",
+                              !isSelected && "border-border hover:border-primary/50"
+                            )}
+                            onclick={() => toggleTimeSlot(timeSlot)}
+                          >
+                            <div class="text-sm font-medium">
+                              {timeSlot.start_time.substring(0, 5)} - {timeSlot.end_time.substring(0, 5)}
+                            </div>
+                            {#if isPrimetime}
+                              <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold bg-yellow-100 text-yellow-800 rounded">
+                                PRIME
+                              </span>
+                            {/if}
+                          </button>
+                        {/each}
+                      </div>
+                    </ScrollArea>
+                    <p class="text-xs text-muted-foreground mt-1">
+                      💡 Primetime slots require admin approval
+                    </p>
+                  {/if}
+                </div>
+
+                <!-- Custom time inputs -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="grid gap-2">
+                    <Label for="start-time-{id}">Start Time</Label>
+                    <Input
+                      id="start-time-{id}"
+                      type="time"
+                      bind:value={startTime}
+                      onchange={handleCustomTimeChange}
+                    />
+                  </div>
+                  <div class="grid gap-2">
+                    <Label for="end-time-{id}">End Time</Label>
+                    <Input
+                      id="end-time-{id}"
+                      type="time"
+                      bind:value={endTime}
+                      onchange={handleCustomTimeChange}
+                    />
+                  </div>
+                </div>
+
+                {#if totalHours > 0}
+                  <div class="p-3 rounded-md bg-primary/5 border border-primary/20">
+                    <div class="flex justify-between items-center text-sm">
+                      <span>Duration:</span>
+                      <span class="font-semibold">{totalHours} hrs × ₱500 = ₱{totalCost.toLocaleString()}</span>
+                    </div>
+                  </div>
+                {/if}
+              {/if}
+            </div>
+
+          {:else if step === 2}
+            <!-- STEP 2: ADD-ONS (placeholder) -->
+            <div class="grid gap-4">
+              <p class="text-sm text-muted-foreground">Select additional services (optional)</p>
+              <div class="space-y-2">
+                <label class="flex items-center gap-2">
+                  <input type="checkbox" value="projector" bind:group={selectedAddons} />
+                  <span class="text-sm">Projector (₱200)</span>
+                </label>
+                <label class="flex items-center gap-2">
+                  <input type="checkbox" value="whiteboard" bind:group={selectedAddons} />
+                  <span class="text-sm">Whiteboard (₱100)</span>
+                </label>
+                <label class="flex items-center gap-2">
+                  <input type="checkbox" value="sound_system" bind:group={selectedAddons} />
+                  <span class="text-sm">Sound System (₱300)</span>
+                </label>
+              </div>
+            </div>
+
+          {:else}
+            <!-- STEP 3: REVIEW -->
+            <div class="grid gap-4">
+              <div class="space-y-2">
+                <h3 class="font-semibold">Booking Summary</h3>
+                <div class="grid gap-1 text-sm">
+                  <div class="flex justify-between">
+                    <span class="text-muted-foreground">Name:</span>
+                    <span class="font-medium">{bookingName}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-muted-foreground">Date:</span>
+                    <span class="font-medium">{date}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-muted-foreground">Time:</span>
+                    <span class="font-medium">{startTime} - {endTime}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-muted-foreground">Space:</span>
+                    <span class="font-medium">{space}</span>
+                  </div>
+                  {#if selectedAddons.length > 0}
+                    <div class="flex justify-between">
+                      <span class="text-muted-foreground">Add-ons:</span>
+                      <span class="font-medium">{selectedAddons.join(', ')}</span>
+                    </div>
+                  {/if}
+                  <div class="flex justify-between pt-2 border-t">
+                    <span class="font-semibold">Total:</span>
+                    <span class="font-semibold">₱{totalCost.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          {#if errorMessage}
+            <div class="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+              {errorMessage}
+            </div>
+          {/if}
+        </div>
+      </ScrollArea>
+
+      <!-- Footer actions -->
+      <div class="flex justify-between mt-4 gap-2">
+        {#if step > 1}
+          <Button variant="outline" onclick={prevStep}>Previous</Button>
+        {:else}
+          <div></div>
+        {/if}
+
+        {#if step < 3}
+          <Button onclick={nextStep} disabled={step === 1 && !canProceedStep1}>
+            Next
+          </Button>
+        {:else}
+          <Button onclick={handleConfirm} disabled={loading}>
+            {loading ? 'Processing...' : 'Confirm Booking'}
+          </Button>
+        {/if}
+      </div>
+    </Dialog.Content>
+  </Dialog.Root>
+
+{:else}
+  <!-- MOBILE VERSION - Drawer -->
+  <Drawer.Root bind:open>
+    <Drawer.Trigger class={buttonVariants({ variant: "outline" })}>
+      New Reservation
+    </Drawer.Trigger>
+    <Drawer.Content>
+      <Drawer.Header class="text-left">
+        <Drawer.Title>New Reservation</Drawer.Title>
+        <Drawer.Description>
+          <!-- Breadcrumb steps -->
+          <div class="flex items-center gap-2 mt-2 text-sm">
+            {#each stepTitles as stepItem, i}
+              <span class={stepItem.active ? 'font-bold text-foreground' : 'text-muted-foreground'}>
+                {stepItem.title}
+              </span>
+              {#if i < stepTitles.length - 1}
+                <span class="mx-1">›</span>
+              {/if}
+            {/each}
+          </div>
+        </Drawer.Description>
+      </Drawer.Header>
+
+      <!-- Same form content as desktop, wrapped in px-4 -->
+      <ScrollArea class="max-h-[60vh] px-4">
+        <div class="space-y-6 pb-4">
+          {#if step === 1}
+            <!-- STEP 1 (same as desktop) -->
+            <div class="grid gap-4">
+              <div class="grid gap-2">
+                <Label for="booking-name-mobile-{id}">Booking Name</Label>
+                <Input
+                  id="booking-name-mobile-{id}"
+                  placeholder="e.g., Build Day Workshop"
+                  bind:value={bookingName}
+                />
+              </div>
+
+              <div class="grid gap-2">
+                <Label>Date</Label>
+                <Popover.Root>
+                  <Popover.Trigger class={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "justify-start text-left font-normal w-full",
+                    !value && "text-muted-foreground"
+                  )}>
+                    <CalendarIcon class="mr-2 h-4 w-4" />
+                    {value ? df.format(value.toDate(getLocalTimeZone())) : "Pick a date"}
+                  </Popover.Trigger>
+                  <Popover.Content class="w-auto p-0">
+                    <Calendar.Calendar bind:value fixedWeeks />
+                  </Popover.Content>
+                </Popover.Root>
+              </div>
+
+              <div class="grid gap-2">
+                <Label>Space</Label>
+                <Select.Root type="single" bind:value={space}>
+                  <Select.Trigger class="w-full">
+                    <span>{space}</span>
+                  </Select.Trigger>
+                  <Select.Content>
+                    <Select.Item value="Great Hall">Great Hall</Select.Item>
+                    <Select.Item value="Recording Studio">Recording Studio</Select.Item>
+                    <Select.Item value="Workspace Main">Workspace Main</Select.Item>
+                  </Select.Content>
+                </Select.Root>
+              </div>
+
+              {#if date}
+                <div class="grid gap-2">
+                  <Label>Available Time Slots</Label>
+                  {#if loadingSlots}
+                    <div class="text-sm text-muted-foreground py-4 text-center">
+                      Loading...
+                    </div>
+                  {:else if availableSlots.length === 0}
+                    <div class="text-sm text-destructive py-4 text-center">
+                      No slots available
+                    </div>
+                  {:else}
+                    <ScrollArea class="h-40 rounded-md border p-2">
+                      <div class="grid gap-2">
+                        {#each availableSlots as timeSlot}
+                          {@const slotKey = `${timeSlot.start_time} - ${timeSlot.end_time}`}
+                          {@const isSelected = selectedTimes.includes(slotKey)}
+                          {@const isPrimetime = timeSlot.type === 'PRIMETIME'}
+                          <button
+                            type="button"
+                            class={cn(
+                              "relative p-2 rounded-md border text-left transition-all text-sm",
+                              isSelected && "border-primary bg-primary/10",
+                              !isSelected && "border-border"
+                            )}
+                            onclick={() => toggleTimeSlot(timeSlot)}
+                          >
+                            {timeSlot.start_time.substring(0, 5)} - {timeSlot.end_time.substring(0, 5)}
+                            {#if isPrimetime}
+                              <span class="ml-2 px-1 py-0.5 text-[9px] font-semibold bg-yellow-100 text-yellow-800 rounded">
+                                PRIME
+                              </span>
+                            {/if}
+                          </button>
+                        {/each}
+                      </div>
+                    </ScrollArea>
+                  {/if}
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="grid gap-2">
+                    <Label for="start-time-mobile-{id}">Start</Label>
+                    <Input
+                      id="start-time-mobile-{id}"
+                      type="time"
+                      bind:value={startTime}
+                      onchange={handleCustomTimeChange}
+                    />
+                  </div>
+                  <div class="grid gap-2">
+                    <Label for="end-time-mobile-{id}">End</Label>
+                    <Input
+                      id="end-time-mobile-{id}"
+                      type="time"
+                      bind:value={endTime}
+                      onchange={handleCustomTimeChange}
+                    />
+                  </div>
+                </div>
+
+                {#if totalHours > 0}
+                  <div class="p-2 rounded-md bg-primary/5 border text-sm">
+                    {totalHours} hrs × ₱500 = ₱{totalCost.toLocaleString()}
+                  </div>
+                {/if}
+              {/if}
+            </div>
+
+          {:else if step === 2}
+            <!-- STEP 2: ADD-ONS -->
+            <div class="grid gap-4">
+              <p class="text-sm text-muted-foreground">Optional add-ons</p>
+              <div class="space-y-2">
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" value="projector" bind:group={selectedAddons} />
+                  Projector (₱200)
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" value="whiteboard" bind:group={selectedAddons} />
+                  Whiteboard (₱100)
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" value="sound_system" bind:group={selectedAddons} />
+                  Sound System (₱300)
+                </label>
+              </div>
+            </div>
+
+          {:else}
+            <!-- STEP 3: REVIEW -->
+            <div class="grid gap-4">
+              <h3 class="font-semibold">Summary</h3>
+              <div class="grid gap-1 text-sm">
+                <div class="flex justify-between">
+                  <span class="text-muted-foreground">Name:</span>
+                  <span class="font-medium">{bookingName}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-muted-foreground">Date:</span>
+                  <span class="font-medium">{date}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-muted-foreground">Time:</span>
+                  <span class="font-medium">{startTime} - {endTime}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-muted-foreground">Space:</span>
+                  <span class="font-medium">{space}</span>
+                </div>
+                {#if selectedAddons.length > 0}
+                  <div class="flex justify-between">
+                    <span class="text-muted-foreground">Add-ons:</span>
+                    <span class="font-medium text-xs">{selectedAddons.join(', ')}</span>
+                  </div>
+                {/if}
+                <div class="flex justify-between pt-2 border-t font-semibold">
+                  <span>Total:</span>
+                  <span>₱{totalCost.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          {#if errorMessage}
+            <div class="p-2 rounded-md bg-destructive/10 border text-xs text-destructive">
+              {errorMessage}
+            </div>
+          {/if}
+        </div>
+      </ScrollArea>
+
+      <Drawer.Footer class="pt-2">
+        <div class="flex gap-2 w-full">
+          {#if step > 1}
+            <Button variant="outline" onclick={prevStep} class="flex-1">Previous</Button>
+          {/if}
+          
+          {#if step < 3}
+            <Button onclick={nextStep} disabled={step === 1 && !canProceedStep1} class="flex-1">
+              Next
+            </Button>
+          {:else}
+            <Button onclick={handleConfirm} disabled={loading} class="flex-1">
+              {loading ? 'Processing...' : 'Confirm'}
+            </Button>
+          {/if}
+        </div>
+        <Drawer.Close class={buttonVariants({ variant: "outline" })}>
+          Cancel
+        </Drawer.Close>
+      </Drawer.Footer>
+    </Drawer.Content>
+  </Drawer.Root>
+{/if}
+
+{#if loading}
+  <div class="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+    <div class="flex flex-col items-center gap-4">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <p class="text-sm text-muted-foreground">Processing your booking...</p>
+    </div>
+  </div>
+{/if}

@@ -1,9 +1,13 @@
 <script lang="ts">
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "$lib/components/ui/dialog/index.js";
 import DateTimeStep from "$lib/components/reservation-steps/bookslot.svelte";
 import AddonsStep from "$lib/components/reservation-steps/addon.svelte";
 import ReviewStep from "$lib/components/reservation-steps/review-form.svelte";
-import { postBooking } from "$lib/api/index.js";
+import { createReservation } from "$lib/api/reservation";
+import { toast } from 'svelte-sonner';
+import type {Reservation} from '$lib/api/reservation';
+  import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
+
 
 
 interface Props {
@@ -17,9 +21,15 @@ let { open = $bindable(false), onClose, onSuccess }: Props = $props();
 
 let step = $state(1);
 let loading = $state(false);
+let errorMessage = $state('');
 
 // Form state - centralized here and passed to components
+
+let formData: Reservation | null = null;
+
+
 let bookingName = $state("");
+let isPrimetime = $state(false);
 let date = $state("");
 let space = $state("Workspace Main");
 let selectedAddons = $state<string[]>([]);
@@ -88,22 +98,39 @@ function handleConfirm() {
     addons: selectedAddons,
     totalHours,
     totalCost,
+    isPrimetime
   };
 
   // Try to call backend if configured, otherwise fallback to local mock
   (async () => {
     try {
-      // postBooking will throw if VITE_API_BASE is not set
-      await postBooking(payload as any);
-      // optionally you can handle response data here
-    } catch (err) {
-      // If backend isn't configured or request failed, fallback to mock behaviour
-      await new Promise((r) => setTimeout(r, 900));
+      // Try calling the real backend API
+      const created = await createReservation({
+        user: bookingName, // adapt when you have user id
+        date,
+        start_time: startTime,
+        end_time: endTime,
+        reservation_type: isPrimetime ? "PRIMETIME" : "FREE_FOR_ALL",
+        notes: ''
+      });
+
+      // success path - show toast instead of modal
+      const isPrimetime = isPrimetime || primetimeSelected;
+      const message = isPrimetime 
+        ? 'Primetime reservation created! Waiting for admin approval.' 
+        : 'Reservation created successfully!';
+      toast.success(message);
+      onSuccess?.(created.start_time, primetimeSelected);
+      closeModal(); // Close the reservation modal after success
+    } catch (err: any) {
+      console.error('Booking failed:', err);
+      // show user-friendly message
+      errorMessage = (err?.message || err?.body) ? String(err?.message || err?.body) : 'Booking failed. Please try again.';
+      // show toast for errors too
+      toast.error(errorMessage);
+      // keep modal open so user can retry or edit
     } finally {
       loading = false;
-      closeModal();
-      // pass primetime flag to parent so it can decide what modal to show
-      onSuccess?.(null, primetimeSelected);
     }
   })();
 }
@@ -135,10 +162,13 @@ $effect(() => {
 });
 </script>
 
-<Dialog bind:open>
-  <DialogContent class="max-w-4xl">
-    <DialogHeader>
-      <DialogTitle>New Reservation</DialogTitle>
+<Dialog.Root bind:open>
+  <Dialog.Trigger class={buttonVariants({ variant: "outline" })}
+    >New Reservation</Dialog.Trigger
+  >
+  <Dialog.Content class="sm:max-w-[700px] max-h-[90vh] flex flex-col p-6">
+    <Dialog.Header class="flex-shrink-0 pb-4">
+      <Dialog.Title>New Reservation</Dialog.Title>
       <div class="flex items-center gap-2 mt-1 text-sm">
         {#each stepTitles as stepItem, i}
           <span class={stepItem.active ? 'font-bold text-gray-600' : 'text-gray-500'}>
@@ -149,38 +179,38 @@ $effect(() => {
           {/if}
         {/each}
       </div>
-    </DialogHeader>
+    </Dialog.Header>
 
-    {#if step === 1}
-      <DateTimeStep
-        bind:bookingName
-        bind:date
-        bind:space
-        bind:startTime
-        bind:endTime
-        bind:primetimeSelected
-        {totalHours}
-        {totalCost}
-      />
-    {:else if step === 2}
-      <AddonsStep bind:selectedAddons />
-    {:else}
-      <ReviewStep
-        {bookingName}
-        {date}
-        {space}
-        {startTime}
-        {endTime}
-        {selectedAddons}
-        {totalHours}
-        {totalCost}
-      />
-    {/if}
+    <div class="flex-1 overflow-y-auto -mx-6 px-6">
+      {#if step === 1}
+        <DateTimeStep
+          bind:bookingName
+          bind:date
+          bind:space
+          bind:startTime
+          bind:endTime
+          bind:primetimeSelected
+          {totalHours}
+          {totalCost}
+        />
+      {:else if step === 2}
+        <AddonsStep bind:selectedAddons />
+      {:else}
+        <ReviewStep
+          {bookingName}
+          {date}
+          {space}
+          {startTime}
+          {endTime}
+          {selectedAddons}
+          {totalHours}
+          {totalCost}
+        />
+      {/if}
+    </div>
 
-    <DialogFooter class="mt-4 flex justify-between">
-      <div>
-        
-      </div>
+    <Dialog.Footer class="mt-4 flex justify-between">
+     
       <div class="flex gap-2">
         {#if step > 1}
           <button 
@@ -218,7 +248,13 @@ $effect(() => {
           </button>
         {/if}
       </div>
-    </DialogFooter>
+    </Dialog.Footer>
+
+    {#if errorMessage}
+      <div class="mt-3 text-sm text-red-600 px-4">
+        {errorMessage}
+      </div>
+    {/if}
 
     {#if loading}
       <div class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-80 z-50 rounded-xl">
@@ -231,5 +267,5 @@ $effect(() => {
         </div>
       </div>
     {/if}
-  </DialogContent>
-</Dialog>
+  </Dialog.Content>
+</Dialog.Root>

@@ -24,7 +24,7 @@
   <nav class="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
     <div class="container mx-auto px-4 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <img src="/src/lib/assets/bhive.png" alt="B-Hive Logo" class="h-10 w-16" />
+        <img src="/bhive.png" alt="B-Hive Logo" class="h-10 w-16" />
         <div>
           <h1 class="text-xl font-semibold text-gray-800">B-Hive</h1>
           <p class="text-xs text-gray-500">Buri's Great Hall</p>
@@ -231,7 +231,7 @@
       <div class="grid md:grid-cols-3 gap-8">
         <div>
           <div class="flex items-center gap-2 mb-4">
-            <img src="/src/lib/assets/bhive.png" alt="B-Hive Logo" class="h-8 w-12" />
+            <img src="/bhive.png" alt="B-Hive Logo" class="h-8 w-12" />
             <h3 class="text-xl font-semibold">B-Hive</h3>
           </div>
           <p class="text-gray-400">

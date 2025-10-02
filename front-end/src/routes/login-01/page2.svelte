@@ -8,7 +8,7 @@
     <!-- Left column -->
     <div class="flex flex-col items-center justify-center flex-1 bg-gray-50 px-12 py-10">
       <div class="w-full max-w-md mx-auto">
-        <img src="/src/lib/assets/bhive.png" alt="bhive logo" class="w-24 h-14 mb-6" />
+        <img src="/bhive.png" alt="bhive logo" class="w-24 h-14 mb-6" />
         <h1 class="text-4xl font-light mb-2 text-gray-800">B-Hive: Buri's Great Hall</h1>
         <p class="mb-6 text-gray-600">A simple and secure platform to manage reservations for events, meetings, and activities. Designed to make booking effortless for members.</p>
         <ul class="space-y-3 mb-8">

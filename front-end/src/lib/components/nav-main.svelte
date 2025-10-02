@@ -23,7 +23,7 @@
 
 <Sidebar.Group class="mt-2">
 	<Sidebar.GroupLabel>
-		<img src="/src/lib/assets/bhive.png" alt="bhive logo" class="h-10 w-auto ml-0" />
+		<img src="/bhive.png" alt="bhive logo" class="h-10 w-auto ml-0" />
 	</Sidebar.GroupLabel>
 	<Sidebar.Menu class="mt-5">
 		   {#each items as item (item.title)}

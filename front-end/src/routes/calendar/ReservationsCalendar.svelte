@@ -1,4 +1,5 @@
 <script lang="ts">
+import '@event-calendar/core/index.css';
 import {Calendar, TimeGrid} from '@event-calendar/core';
 import { user } from '$lib/stores/user';
 import { onMount } from 'svelte';
@@ -21,6 +22,7 @@ let options = $state({
     nowIndicator: true,       // Shows current time line
 });
 
+$inspect(options);
 /* eventClick: handleEventClick
    optional in future: Handle clicks on events to show details
 */
@@ -71,6 +73,7 @@ async function loadCalendarData(startDate?: string, endDate?: string) {
             start: `${reservation.date}T${reservation.start_time}`,
             end: `${reservation.date}T${reservation.end_time}`,
             backgroundColor: getReservationColor(reservation),
+            textColor: '#ffffff',
             extendedProps: {
               status: reservation.status,
               notes: reservation.notes,
@@ -80,19 +83,19 @@ async function loadCalendarData(startDate?: string, endDate?: string) {
           });
         }
 
-        // Optionally: Add available slots as background events
-        if (day.available_slots) {
+        // Future feature (still buggy): display primetime hours
+        /*if (day.available_slots) {
           for (const slot of day.available_slots) {
             if (slot.available) {
               events.push({
                 start: `${day.date}T${slot.start_time}`,
                 end: `${day.date}T${slot.end_time}`,
                 display: 'background',
-                backgroundColor: slot.type === 'primetime' ? '#fff3cd' : '#e8f5e9'
+                backgroundColor: slot.type === 'PRIMETIME' ? '#fff3cd' : '#e8f5e9'
               });
             }
-          }
-        }
+          } 
+        } */
       }
 
       options.events = events;
@@ -107,10 +110,12 @@ async function loadCalendarData(startDate?: string, endDate?: string) {
 // this shows different event details for admins or for users 
 function getReservationTitle(reservation: any): string {
   if ($user?.role === 'admin') {
-    return `${reservation.user_email} - ${reservation.status}`;
+    //return `${reservation.user.email} - ${reservation.status}`;
+    return `${reservation.user.email}`;
   }
-  if (reservation.user === $user?.id) {
-    return `Your Reservation (${reservation.status})`;
+  if (reservation.user.id === $user?.id) {
+    //return `Your Reservation (${reservation.status})`;
+    return `Your Reservation`;
   }
   return 'Reserved';
 }
@@ -123,16 +128,19 @@ function handleViewChange(info: any) {
     loadCalendarData();
   }
 
+  //NOTE: currently calendar api doesn't return pending or cancelled reservations
+  // so technically that part is unnecessary, but if the api changes in the future, it's there!
 function getReservationColor(reservation: any): string {
-    if (reservation.user === $user?.id) {
+    if (reservation.user.id === $user?.id) {
+      console.log(reservation.status);
       switch (reservation.status) {
-        case 'CONFIRMED': return '#4caf50';
-        case 'PENDING': return '#ff9800';
-        case 'CANCELLED': return '#9e9e9e';
+        case 'CONFIRMED': return '#4caf50'; //green if it's your confirmed reservation
+        case 'PENDING': return '#ff9800'; //orange if it's your pending reservation
+        case 'CANCELLED': return '#9e9e9e'; //cancelled - red
         default: return '#2196f3';
       }
     }
-    return '#757575'; // Other users' reservations
+    return '#757575'; // Other users' reservations will be dark grey
   }
 
 </script>

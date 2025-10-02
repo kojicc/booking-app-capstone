@@ -11,7 +11,7 @@
 	import AwaitingConfirmation from "$lib/components/awaiting-confirmation.svelte";
 	// @ts-ignore - Event calendar library has no type definitions
 	import {Calendar, TimeGrid} from '@event-calendar/core';
-
+	import { showReservationModal, showAwaitingModal, showSuccessModal } from "$lib/stores/reservation";
 	import ReservationsCalendar from './ReservationsCalendar.svelte';
 
     let options = $state({

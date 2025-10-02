@@ -9,7 +9,7 @@
 	import SuccessModal from "$lib/components/success-modal.svelte";
 	import AwaitingConfirmation from "$lib/components/awaiting-confirmation.svelte";
 	import {Calendar, TimeGrid} from '@event-calendar/core';
-
+	import ReservationsCalendar from './ReservationsCalendar.svelte';
     let options = $state({
         view: 'timeGridWeek',
         events: [
@@ -86,7 +86,9 @@ function handleModalClose() {
 			</button>
 		</header>
 
-		<Calendar plugins={[TimeGrid]} {options} />
+
+		<!-- <Calendar plugins={[TimeGrid]} {options} /> -->
+		<ReservationsCalendar />
 
 		{#if showReservationModal}
 			<ReservationModal open={showReservationModal} onClose={handleModalClose} onSuccess={handleReservationSuccess} />

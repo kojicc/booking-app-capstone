@@ -7,7 +7,7 @@
     <section class="flex w-full min-h-screen flex-col sm:flex-row">
         <aside class="hidden sm:flex sm:flex-col sm:items-center sm:justify-center sm:flex-1 bg-gray-50 px-12 py-10">
             <article class="w-full max-w-md mx-auto">
-                <img src="/src/lib/assets/bhive.png" alt="bhive logo" class="w-24 h-14 mb-6" />
+                <img src="/bhive.png" alt="bhive logo" class="w-24 h-14 mb-6" />
                 <h1 class="text-4xl font-light mb-2 text-gray-800">B-Hive: Buri's Great Hall</h1>
                 <p class="mb-6 text-gray-600">A simple and secure platform to manage reservations for events, meetings, and activities. Designed to make booking effortless for members.</p>
                 <ul class="space-y-3 mb-8">
@@ -22,7 +22,7 @@
         <section class="flex flex-col justify-center flex-1 bg-white px-8 py-10">
             <article class="w-full max-w-sm mx-auto">
                 <!-- Mobile-only logo: visible below sm (hidden on sm and up) -->
-                <img src="/src/lib/assets/bhive.png" alt="bhive logo" class="block sm:hidden w-24 h-14 mx-auto mb-6" />
+                <img src="/bhive.png" alt="bhive logo" class="block sm:hidden w-24 h-14 mx-auto mb-6" />
                 <RegisterForm />
             </article>
         </section>

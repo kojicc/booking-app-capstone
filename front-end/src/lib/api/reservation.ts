@@ -11,6 +11,7 @@ export interface Reservation {
 				last_name: string;
 				role: string;
 		  };
+	booking_name: string;
 	status?: string;
 	status_display?: string;
 	start_time: string;
@@ -32,6 +33,7 @@ export interface Reservation {
 
 export interface CreateReservationPayload {
 	user: string; // user ID or email
+	booking_name: string; // name/title for the booking
 	start_time: string; // hh:mm
 	end_time: string; // hh:mm
 	reservation_type: string; // e.g., "meeting", "event"

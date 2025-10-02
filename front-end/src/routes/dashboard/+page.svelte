@@ -100,9 +100,28 @@
 
 	function formatActivityDetails(activity: any): string {
 		// Format activity.details into a human-readable string
-		if (!activity.details) return 'No details available';
+		if (!activity.details) return '';
 		
 		const details = activity.details;
+		
+		// Handle CREATED actions with initial_status
+		if (activity.action === 'CREATED' && details.initial_status) {
+			const status = details.initial_status === 'CONFIRMED' ? 'Confirmed' : 'Pending approval';
+			return `New ${details.reservation_type || 'reservation'} - ${status}`;
+		}
+		
+		// Handle REJECTED actions
+		if (activity.action === 'REJECTED' || activity.action === 'reject') {
+			if (details.rejection_reason) {
+				return `Reason: ${details.rejection_reason}`;
+			}
+			return 'Reservation was rejected';
+		}
+		
+		// Handle CANCELLED actions
+		if (activity.action === 'CANCELLED' || activity.action === 'cancel') {
+			return 'Reservation was cancelled by user';
+		}
 		
 		// If details has new_data and old_data, format the changes
 		if (details.new_data && details.old_data) {
@@ -112,60 +131,101 @@
 			
 			// Compare key fields and show what changed
 			if (newData.status !== oldData.status) {
-				changes.push(`Status: ${oldData.status_display || oldData.status} → ${newData.status_display || newData.status}`);
+				changes.push(`${oldData.status_display || oldData.status} → ${newData.status_display || newData.status}`);
 			}
 			if (newData.start_time !== oldData.start_time) {
-				changes.push(`Start time: ${oldData.start_time} → ${newData.start_time}`);
+				changes.push(`Time: ${oldData.start_time.substring(0, 5)} → ${newData.start_time.substring(0, 5)}`);
 			}
 			if (newData.end_time !== oldData.end_time) {
-				changes.push(`End time: ${oldData.end_time} → ${newData.end_time}`);
+				changes.push(`Ends: ${oldData.end_time.substring(0, 5)} → ${newData.end_time.substring(0, 5)}`);
+			}
+			if (newData.date !== oldData.date) {
+				changes.push(`Date changed`);
 			}
 			if (newData.notes !== oldData.notes) {
 				changes.push(`Notes updated`);
 			}
-			if (newData.date !== oldData.date) {
-				changes.push(`Date: ${oldData.date} → ${newData.date}`);
-			}
 			
 			if (changes.length > 0) {
-				const userName = newData.user?.email || newData.user?.first_name || 'User';
-				return `Reservation #${newData.id} for ${userName}: ${changes.join(', ')}`;
+				const userName = newData.user?.email || newData.user?.first_name || '';
+				const userPart = userName ? ` by ${userName}` : '';
+				return `Reservation #${newData.id}${userPart}: ${changes.join(' • ')}`;
 			}
 			
-			return `Reservation #${newData.id} was modified`;
+			return `Reservation #${newData.id} modified`;
 		}
 		
-		// If it's a simple string or object, try to format it
-		if (typeof details === 'string') {
-			return details;
-		}
-		
-		// If there's a reservation_id, use it
+		// If there's a reservation_id or id, use it
 		if (details.reservation_id || details.id) {
 			const id = details.reservation_id || details.id;
 			const userName = details.user?.email || details.user || '';
-			return `Reservation #${id}${userName ? ` by ${userName}` : ''}`;
+			const userPart = userName ? ` by ${userName}` : '';
+			return `Reservation #${id}${userPart}`;
 		}
 		
-		// Fallback: just show some basic info if available
-		return JSON.stringify(details).substring(0, 100) + '...';
+		// Don't show raw JSON - return empty string if we can't parse it nicely
+		return '';
 	}
 
 	function getActivityActionLabel(action: string): string {
 		// Convert backend action codes to user-friendly labels
 		switch (action?.toUpperCase()) {
 			case 'CREATED':
-				return 'Created Reservation';
+				return 'New Reservation';
 			case 'UPDATED':
-				return 'Updated Reservation';
+				return 'Reservation Updated';
 			case 'DELETED':
-				return 'Cancelled Reservation';
+			case 'CANCELLED':
+			case 'CANCEL':
+				return 'Reservation Cancelled';
 			case 'APPROVED':
-				return 'Approved Reservation';
+				return 'Reservation Approved';
 			case 'REJECTED':
-				return 'Rejected Reservation';
+			case 'REJECT':
+				return 'Reservation Rejected';
 			default:
-				return action || 'Activity';
+				// Capitalize first letter
+				return action ? action.charAt(0).toUpperCase() + action.slice(1).toLowerCase() : 'Activity';
+		}
+	}
+	
+	function getActivityIcon(action: string) {
+		switch (action?.toUpperCase()) {
+			case 'CREATED':
+				return CheckCircle;
+			case 'UPDATED':
+				return Clock;
+			case 'APPROVED':
+				return CheckCircle;
+			case 'REJECTED':
+			case 'REJECT':
+				return XCircle;
+			case 'CANCELLED':
+			case 'CANCEL':
+			case 'DELETED':
+				return XCircle;
+			default:
+				return AlertCircle;
+		}
+	}
+	
+	function getActivityColor(action: string): string {
+		switch (action?.toUpperCase()) {
+			case 'CREATED':
+				return 'text-green-600 bg-green-50 border-green-200';
+			case 'APPROVED':
+				return 'text-green-600 bg-green-50 border-green-200';
+			case 'UPDATED':
+				return 'text-blue-600 bg-blue-50 border-blue-200';
+			case 'REJECTED':
+			case 'REJECT':
+				return 'text-red-600 bg-red-50 border-red-200';
+			case 'CANCELLED':
+			case 'CANCEL':
+			case 'DELETED':
+				return 'text-gray-600 bg-gray-50 border-gray-200';
+			default:
+				return 'text-gray-600 bg-gray-50 border-gray-200';
 		}
 	}
 
@@ -401,7 +461,7 @@
 										<div class="flex-1 min-w-0">
 											<div class="flex items-center gap-2 mb-1">
 												<h4 class="font-medium text-sm">
-													{reservation.reservation_type_display || reservation.reservation_type}
+													{reservation.booking_name || reservation.reservation_type_display || reservation.reservation_type}
 												</h4>
 												<Badge class={getStatusColor(reservation.status || '')} variant="outline">
 													{reservation.status_display || reservation.status}
@@ -423,7 +483,7 @@
 												</p>
 											{/if}
 										</div>
-										<Button variant="ghost" size="sm" href={`/reservations`}>
+										<Button variant="ghost" size="sm" href={`/reservations?open=${reservation.id}`}>
 											View
 										</Button>
 									</div>

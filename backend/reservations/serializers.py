@@ -36,7 +36,7 @@ class ReservationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Reservation
         fields = [
-            'id', 'user', 'date', 'start_time', 'end_time', 
+            'id', 'user', 'booking_name', 'date', 'start_time', 'end_time', 
             'status', 'status_display', 'reservation_type', 'reservation_type_display',
             'notes', 'approved_by', 'approved_at', 'rejection_reason',
             'is_editable', 'can_be_traded', 'created_at', 'updated_at'
@@ -62,7 +62,7 @@ class ReservationCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating reservations"""
     class Meta:
         model = Reservation
-        fields = ['date', 'start_time', 'end_time', 'notes']
+        fields = ['booking_name', 'date', 'start_time', 'end_time', 'notes']
     
     def validate_date(self, value):
         if value < date.today():

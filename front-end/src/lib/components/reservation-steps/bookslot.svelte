@@ -37,6 +37,11 @@ let {
 let selectedTimes = $state<string[]>([]);
 let availableSlots = $state<TimeSlot[]>([]);
 let calendarData = $state<CalendarDay[]>([]);
+let customTimeError = $state<string>('');
+// Manual input debounce helpers
+let manualStartInput = $state('');
+let manualEndInput = $state('');
+let debounceTimer: number | null = null;
 
 // Date restrictions
 let minDate = $state(new Date().toISOString().split('T')[0]); // Today's date
@@ -52,6 +57,12 @@ $effect(() => {
     // value.toString() returns ISO date yyyy-mm-dd
     date = value.toString();
   }
+});
+
+$effect(() => {
+  // Keep manual inputs in sync when programmatic changes occur
+  if (startTime !== manualStartInput) manualStartInput = startTime || '';
+  if (endTime !== manualEndInput) manualEndInput = endTime || '';
 });
 
 // Real backend API functions
@@ -177,6 +188,8 @@ function toggleTimeSlot(slot: TimeSlot) {
 
 // Clear selections when date changes
 $effect(() => {
+  // referencing `date` ensures this effect runs only when the selected date changes
+  const _d = date;
   selectedTimes = [];
   startTime = "";
   endTime = "";
@@ -186,18 +199,67 @@ $effect(() => {
 // Handle manual time input matching
 $effect(() => {
   if (startTime && endTime && availableSlots.length > 0) {
+    customTimeError = '';
+    
+    // Parse times
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+    
+    // Validate time range
+    if (startMinutes >= endMinutes) {
+      customTimeError = 'End time must be after start time';
+      return;
+    }
+    
+    // Check if custom time is within business hours (7 AM - 7 PM)
+    if (startHour < 7 || endHour > 19 || (endHour === 19 && endMin > 0)) {
+      customTimeError = 'Time must be between 7:00 AM and 7:00 PM';
+      return;
+    }
+    
+    // Check if time overlaps with any unavailable slots
+    const hasConflict = availableSlots.some(slot => {
+      if (!slot.available) {
+        const [slotStartHour, slotStartMin] = slot.start_time.split(':').map(Number);
+        const [slotEndHour, slotEndMin] = slot.end_time.split(':').map(Number);
+        const slotStartMinutes = slotStartHour * 60 + slotStartMin;
+        const slotEndMinutes = slotEndHour * 60 + slotEndMin;
+        
+        // Check if custom range overlaps with unavailable slot
+        return (startMinutes < slotEndMinutes && endMinutes > slotStartMinutes);
+      }
+      return false;
+    });
+    
+    if (hasConflict) {
+      customTimeError = 'Selected time conflicts with an existing reservation';
+      return;
+    }
+    
+    // Check if it's during primetime hours
+    const primetimeSlot = availableSlots.find(slot => 
+      slot.type === 'PRIMETIME' && 
+      slot.start_time <= startTime && 
+      slot.end_time >= endTime
+    );
+    primetimeSelected = !!primetimeSlot;
+    
+    // Update selected times if valid
     const currentRange = `${startTime} - ${endTime}`;
     const matchingSlot = availableSlots.find(slot => 
       `${slot.start_time} - ${slot.end_time}` === currentRange
     );
     
-    if (!matchingSlot) {
-      selectedTimes = [];
-      primetimeSelected = false;
-    } else if (!selectedTimes.includes(currentRange)) {
-      selectedTimes = [currentRange];
-      primetimeSelected = matchingSlot.type === 'PRIMETIME';
-    }
+      if (matchingSlot) {
+        if (!(selectedTimes.length === 1 && selectedTimes[0] === currentRange)) {
+          selectedTimes = [currentRange];
+        }
+      } else {
+        // Custom time range (not a predefined slot)
+        if (selectedTimes.length !== 0) selectedTimes = [];
+      }
   }
 });
 
@@ -209,6 +271,27 @@ $effect(() => {
   hasDate = !!date;
   hasAvailableSlots = availableSlots.length > 0;
 });
+
+// Debounce manual input updates: when user types, wait 250ms before applying
+function onManualStartInput(v: string) {
+  manualStartInput = v;
+  if (debounceTimer) window.clearTimeout(debounceTimer);
+  debounceTimer = window.setTimeout(() => {
+    if (/^\d{2}:\d{2}$/.test(manualStartInput)) {
+      startTime = manualStartInput;
+    }
+  }, 250);
+}
+
+function onManualEndInput(v: string) {
+  manualEndInput = v;
+  if (debounceTimer) window.clearTimeout(debounceTimer);
+  debounceTimer = window.setTimeout(() => {
+    if (/^\d{2}:\d{2}$/.test(manualEndInput)) {
+      endTime = manualEndInput;
+    }
+  }, 250);
+}
 
 
 </script>
@@ -349,9 +432,15 @@ $effect(() => {
         id="start-time" 
         type="time" 
         class="w-full rounded-md border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-primary-200-var focus:border-primary-200-var transition" 
-        bind:value={startTime} 
-        readonly
+        bind:value={manualStartInput}
+        oninput={(e) => onManualStartInput(((e.target as HTMLInputElement)?.value) ?? '')}
+        min="07:00"
+        max="19:00"
+        disabled={loadingSlots}
       />
+      {#if loadingSlots}
+        <p class="text-xs text-gray-500 mt-1">Time inputs disabled while availability loads...</p>
+      {/if}
     </div>
     <div>
       <label for="end-time" class="block text-sm font-medium mb-1">End Time</label>
@@ -359,11 +448,27 @@ $effect(() => {
         id="end-time" 
         type="time" 
         class="w-full rounded-md border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-primary-200-var focus:border-primary-200-var transition" 
-        bind:value={endTime} 
-        readonly
+        bind:value={manualEndInput}
+        oninput={(e) => onManualEndInput(((e.target as HTMLInputElement)?.value) ?? '')}
+        min="07:00"
+        max="19:00"
+        disabled={loadingSlots}
       />
+      {#if loadingSlots}
+        <p class="text-xs text-gray-500 mt-1">Time inputs disabled while availability loads...</p>
+      {/if}
     </div>
   </div>
+
+  {#if customTimeError}
+    <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+      {customTimeError}
+    </div>
+  {:else if startTime && endTime && !selectedTimes.length}
+    <div class="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg p-3 text-sm">
+      ℹ️ Custom time range selected. Make sure it doesn't conflict with existing reservations.
+    </div>
+  {/if}
 
   <div class="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg p-4">
     <div class="flex justify-between items-center gap-4 flex-wrap">

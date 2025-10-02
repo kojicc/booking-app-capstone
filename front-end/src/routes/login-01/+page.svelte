@@ -23,6 +23,9 @@
             <article class="w-full max-w-sm mx-auto">
                 <!-- Mobile-only logo: visible below sm (hidden on sm and up) -->
                 <img src="/src/lib/assets/bhive.png" alt="bhive logo" class="block sm:hidden w-24 h-14 mx-auto mb-6" />
+                <div class="mb-4 text-sm text-gray-600">
+                    <a href="/landing" class="text-[#6B2AB9] hover:underline">← Back to landing page</a>
+                </div>
                 <LoginForm />
             </article>
         </section>

@@ -155,7 +155,7 @@ export async function register(payload: {
 
 // Refresh the access token manually
 export async function refreshAccessToken() {
-	const response = await fetch(getBaseUrl() + '/api/users/refresh/', {
+	const response = await fetch(getBaseUrl() + 'api/users/refresh/', {
 		method: 'POST',
 		credentials: 'include'
 	});

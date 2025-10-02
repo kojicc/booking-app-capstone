@@ -165,4 +165,15 @@ export async function refreshAccessToken() {
 	throw new Error('Token refresh failed');
 }
 
-export default { postBooking, login, register };
+//calendar api functions
+export async function getCalendar(startDate: string, endDate: string) {
+  return apiFetch(
+    `/api/reservations/calendar/?start_date=${startDate}&end_date=${endDate}`,
+    {
+      method: 'GET',
+      credentials: 'include'
+    }
+  );
+}
+
+export default { postBooking, login, register, getCalendar };

@@ -9,6 +9,7 @@
 	import ReservationModal from "$lib/components/reservation-modal.svelte";
 	import SuccessModal from "$lib/components/success-modal.svelte";
 	import AwaitingConfirmation from "$lib/components/awaiting-confirmation.svelte";
+	import { toast } from 'svelte-sonner';
 	// @ts-ignore - Event calendar library has no type definitions
 	import {Calendar, TimeGrid} from '@event-calendar/core';
 	import {showReservationModal, showSuccessModal, showAwaitingModal} from '$lib/stores/reservation';
@@ -51,6 +52,16 @@ function handleModalClose() {
 		// ReservationModal calls this via onSuccess after confirm
 		showReservationModal.set(false);
 		lastBookedTime = bookedTime ?? null;
+		
+		// Show toast notification
+		const message = primetime 
+			? '🎉 Primetime reservation created! Waiting for admin approval.' 
+			: '✅ Reservation created successfully!';
+		toast.success(message, {
+			duration: 5000,
+			position: 'top-center',
+		});
+		
 		// ensure only the correct modal is shown
 		showSuccessModal.set(false);
 		showAwaitingModal.set(false);

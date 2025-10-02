@@ -7,6 +7,7 @@ import { createReservation } from "$lib/api/reservation";
 import { toast } from 'svelte-sonner';
 import type {Reservation} from '$lib/api/reservation';
   import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
+import { clearOpenSignal } from '$lib/stores/reservation';
 
 
 
@@ -107,6 +108,7 @@ function handleConfirm() {
       // Try calling the real backend API
       const created = await createReservation({
         user: bookingName, // adapt when you have user id
+        booking_name: bookingName,
         date,
         start_time: startTime,
         end_time: endTime,
@@ -115,8 +117,8 @@ function handleConfirm() {
       });
 
       // success path - show toast instead of modal
-      const isPrimetime = isPrimetime || primetimeSelected;
-      const message = isPrimetime 
+      const isPrimetimeCheck = isPrimetime || primetimeSelected;
+      const message = isPrimetimeCheck 
         ? 'Primetime reservation created! Waiting for admin approval.' 
         : 'Reservation created successfully!';
       toast.success(message);
@@ -124,11 +126,29 @@ function handleConfirm() {
       closeModal(); // Close the reservation modal after success
     } catch (err: any) {
       console.error('Booking failed:', err);
-      // show user-friendly message
-      errorMessage = (err?.message || err?.body) ? String(err?.message || err?.body) : 'Booking failed. Please try again.';
-      // show toast for errors too
+      let serverBody = err?.body || err?.message || '';
+      // If the body is JSON, try to extract useful messages
+      try {
+        if (typeof serverBody === 'string' && serverBody.trim().length > 0) {
+          const parsed = JSON.parse(serverBody);
+          // If the backend returns an object with field errors, join them
+          if (typeof parsed === 'object' && parsed !== null) {
+            const messages: string[] = [];
+            for (const k of Object.keys(parsed)) {
+              const v = parsed[k];
+              if (Array.isArray(v)) messages.push(`${k}: ${v.join(', ')}`);
+              else if (typeof v === 'string') messages.push(`${k}: ${v}`);
+              else messages.push(`${k}: ${JSON.stringify(v)}`);
+            }
+            if (messages.length) serverBody = messages.join(' • ');
+          }
+        }
+      } catch (parseErr) {
+        // not JSON, ignore
+      }
+
+      errorMessage = serverBody ? String(serverBody) : 'Booking failed. Please try again.';
       toast.error(errorMessage);
-      // keep modal open so user can retry or edit
     } finally {
       loading = false;
     }
@@ -138,6 +158,15 @@ function handleConfirm() {
 // Reset step when modal closes
 $effect(() => {
   if (!open) step = 1;
+});
+
+$effect(() => {
+  if ($clearOpenSignal) {
+    // If parent asked to clear open signals, make sure modal is closed and reset
+    open = false;
+    step = 1;
+    errorMessage = '';
+  }
 });
 
 // Get step title for breadcrumb

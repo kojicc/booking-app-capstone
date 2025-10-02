@@ -9,6 +9,7 @@
 	import { Clock } from "lucide-svelte";
 	import { user } from '$lib/stores/user';
 	import { showReservationModal, showSuccessModal } from '$lib/stores/reservation';
+	import { clearOpenSignal } from '$lib/stores/reservation';
 	import ReservationModal from '$lib/components/reservation-modal.svelte';
 	import AdminReservations from '$lib/components/reservations-admin.svelte';
 	import UserReservations from '$lib/components/reservations-user.svelte';
@@ -18,6 +19,7 @@
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { getPrimeTimeSettings } from '$lib/api/reservation';
 	import { toast } from "svelte-sonner";
+	import { goto } from '$app/navigation';
 
 	// Map path to label for breadcrumb
 	const pathToLabel = {
@@ -37,6 +39,15 @@ let primetimeRef: any = null;
 
 // Refresh key to force child components to reload
 let refreshKey = $state(0);
+
+// Read query param 'open' to optionally open a reservation edit modal
+let openReservationId = $state<number | null>(null);
+
+$effect(() => {
+	const params = $page.url.searchParams;
+	const id = params.get('open');
+	openReservationId = id ? Number(id) : null;
+});
 
 // Primetime state para sa badge
 let todayPrimetime = $state<{start: string, end: string} | null>(null);
@@ -75,10 +86,39 @@ function handleModalClose() {
 	showReservationModal.set(false);
 }
 
-function handleReservationSuccess(bookedTime?: string|Date|number|null, primetime?: boolean) {
+async function handleReservationSuccess(bookedTime?: string|Date|number|null, primetime?: boolean) {
 	// Show a success indicator/modal and optionally show primetime info
 	showSuccessModal.set(true);
+	
+	// Show toast notification
+	const message = primetime 
+		? '🎉 Primetime reservation created! Waiting for admin approval.' 
+		: '✅ Reservation created successfully!';
+	toast.success(message, {
+		duration: 5000,
+		position: 'top-center',
+	});
+	
+	// Remove any 'open' query param to avoid accidentally reopening modals
+	try {
+		const url = new URL(window.location.href);
+			if (url.searchParams.has('open')) {
+				url.searchParams.delete('open');
+				// Replace current URL without reloading page and wait for it to finish
+					await goto(url.pathname + url.search + url.hash, { replaceState: true });
+					// ensure local prop is cleared before remounting children
+					openReservationId = null;
+			}
+	} catch (e) {
+		// ignore
+	}
+
 	// Force child components to refresh by incrementing key
+	// First notify children to clear any lingering open state
+	clearOpenSignal.update(n => n + 1);
+	// Ensure parent prop is cleared so children remount without the id
+	openReservationId = null;
+	// Then force child components to refresh by incrementing key
 	refreshKey++;
 	// Reload primetime badge
 	loadTodayPrimetime();
@@ -151,12 +191,12 @@ $effect(() => {
 
 					{#if $user?.role === 'admin'}
 						{#key refreshKey}
-							<AdminReservations />
-						{/key}
+								<AdminReservations openReservationId={openReservationId} />
+							{/key}
 					{:else}
-						{#key refreshKey}
-							<UserReservations />
-						{/key}
+							{#key refreshKey}
+								<UserReservations openReservationId={openReservationId} />
+							{/key}
 					{/if}
 				</div>
 	</Sidebar.Inset>

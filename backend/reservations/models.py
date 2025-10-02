@@ -50,6 +50,7 @@ class Reservation(models.Model):
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reservations')
+    booking_name = models.CharField(max_length=255, help_text="Name/title for this booking")
     date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField()

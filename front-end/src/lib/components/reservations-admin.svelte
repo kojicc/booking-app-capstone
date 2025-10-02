@@ -5,6 +5,7 @@
   import { getReservations, approveReservation, rejectReservation } from '$lib/api/reservation';
   import { user } from '$lib/stores/user';
   import { toast } from 'svelte-sonner';
+  import { clearOpenSignal } from '$lib/stores/reservation';
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Dialog from "$lib/components/ui/dialog";
   import * as Table from "$lib/components/ui/table";
@@ -12,6 +13,8 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { MoreHorizontal, CheckCircle, XCircle } from 'lucide-svelte';
+
+  let { openReservationId = null }: { openReservationId?: number | null } = $props();
 
   let allReservations = $state<Reservation[]>([]);
   let loading = $state(false);
@@ -106,9 +109,13 @@
     rejectionReason = '';
   }
 
-  // Base reservations sorted by date (for cards)
+  // Base reservations sorted by updated_at (most recently updated first)
   let sortedReservations = $derived.by(() => {
-    return [...allReservations].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return [...allReservations].sort((a, b) => {
+      const dateA = new Date(a.updated_at).getTime();
+      const dateB = new Date(b.updated_at).getTime();
+      return dateB - dateA; // Most recent first
+    });
   });
 
   // Table reservations with filtering and sorting
@@ -129,6 +136,7 @@
         
         return r.id.toString().includes(searchTerm) ||
           userName.includes(searchTerm.toLowerCase()) ||
+          (r.booking_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
           (r.reservation_type_display || r.reservation_type).toLowerCase().includes(searchTerm.toLowerCase()) ||
           (r.status_display || r.status || '').toLowerCase().includes(searchTerm.toLowerCase());
       });
@@ -208,6 +216,37 @@
     }
     return reservation.user;
   }
+
+  // If openReservationId is provided, open a small details dialog for that reservation
+  let foundReservationDialogOpen = $state(false);
+  let foundReservation = $state<Reservation | null>(null);
+  let handledOpenId = $state<number | null>(null);
+  import { goto } from '$app/navigation';
+
+  $effect(() => {
+    if (openReservationId && allReservations.length > 0 && handledOpenId !== openReservationId) {
+      const match = allReservations.find(r => r.id === openReservationId);
+      if (match) {
+        foundReservation = match;
+        foundReservationDialogOpen = true;
+        handledOpenId = openReservationId;
+        // remove query param from URL
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('open');
+          goto(url.pathname + url.search + url.hash, { replaceState: true });
+        } catch (e) {}
+      }
+    }
+  });
+
+$effect(() => {
+  if ($clearOpenSignal) {
+    foundReservationDialogOpen = false;
+    foundReservation = null;
+    handledOpenId = null;
+  }
+});
 </script>
 
 <div class="p-6 max-w-7xl mx-auto">
@@ -245,7 +284,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {#each sortedReservations.slice(0, 3) as reservation}
           <ReservationDetailCard
-            bookingName={reservation.reservation_type_display || reservation.reservation_type}
+            bookingName={reservation.booking_name || reservation.reservation_type_display || reservation.reservation_type}
             userWhoBooked={getUserName(reservation)}
             bookingStatus={reservation.status_display || reservation.status || 'pending'}
             rawStatus={reservation.status || 'PENDING'}
@@ -516,3 +555,36 @@
     </AlertDialog.Footer>
   </AlertDialog.Content>
 </AlertDialog.Root>
+
+<!-- Quick Details Dialog for when page is opened with ?open=<id> -->
+<Dialog.Root bind:open={foundReservationDialogOpen}>
+  <Dialog.Content class="max-w-md">
+    <Dialog.Header>
+      <Dialog.Title>Reservation Details</Dialog.Title>
+      <Dialog.Description>
+        {#if foundReservation}
+          Reservation #{foundReservation.id} — {foundReservation.booking_name || foundReservation.reservation_type_display || foundReservation.reservation_type}
+        {/if}
+      </Dialog.Description>
+    </Dialog.Header>
+
+    {#if foundReservation}
+      <div class="py-2 space-y-2">
+        <div><strong>User:</strong> {getUserName(foundReservation)}</div>
+        <div><strong>Date:</strong> {new Date(foundReservation.date).toLocaleDateString()}</div>
+        <div><strong>Time:</strong> {foundReservation.start_time} - {foundReservation.end_time}</div>
+        {#if foundReservation.notes}
+          <div><strong>Notes:</strong> {foundReservation.notes}</div>
+        {/if}
+      </div>
+    {/if}
+
+    <Dialog.Footer>
+      <Button variant="outline" onclick={() => { foundReservationDialogOpen = false; foundReservation = null; }}>Close</Button>
+      {#if foundReservation}
+        <Button onclick={() => { handleApprove(foundReservation!); foundReservationDialogOpen = false; }}>Approve</Button>
+        <Button variant="destructive" onclick={() => { showRejectConfirmation(foundReservation!); foundReservationDialogOpen = false; }}>Reject</Button>
+      {/if}
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>

@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+	import { onMount } from 'svelte';
   import ReservationDetailCard from "$lib/components/ReservationDetailCard.svelte";
   import { getReservations, deleteReservation, updateReservation } from '$lib/api/reservation';
   import { reservations } from '$lib/stores/reservation';
   import { user } from '$lib/stores/user';
   import type { Reservation } from '$lib/api/reservation';
-  import { toast } from 'svelte-sonner';
+	import { toast } from 'svelte-sonner';
+	import { goto } from '$app/navigation';
+	import { clearOpenSignal } from '$lib/stores/reservation';
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Dialog from "$lib/components/ui/dialog";
   import * as Table from "$lib/components/ui/table";
@@ -14,7 +16,10 @@
   import { Input } from "$lib/components/ui/input";
   import { MoreHorizontal, Edit, Trash2 } from 'lucide-svelte';
 
-  let loading = $state(false);
+		let { openReservationId = null }: { openReservationId?: number | null } = $props();
+
+		let loading = $state(false);
+		let handledOpenId = $state<number | null>(null);
   let error = $state<string | null>(null);
   
   // Dialog state
@@ -25,6 +30,7 @@
   let reservationToEdit = $state<Reservation | null>(null);
   
   // Edit form state
+  let editBookingName = $state('');
   let editDate = $state('');
   let editStartTime = $state('');
   let editEndTime = $state('');
@@ -75,6 +81,35 @@
     loadReservations();
   });
 
+$effect(() => {
+	// If an openReservationId was supplied via URL param, try to open the edit dialog
+	if (openReservationId && $reservations.length > 0 && handledOpenId !== openReservationId) {
+		const match = $reservations.find(r => r.id === openReservationId);
+		if (match) {
+			// Open edit dialog for this reservation
+			showEditDialog(match);
+			handledOpenId = openReservationId;
+					// Remove the query param from the URL so re-navigation doesn't re-open it
+					try {
+						const url = new URL(window.location.href);
+						url.searchParams.delete('open');
+						// Use SvelteKit's goto with replaceState so $page updates
+						goto(url.pathname + url.search + url.hash, { replaceState: true });
+					} catch (e) {
+						// ignore
+					}
+		}
+	}
+});
+
+$effect(() => {
+	if ($clearOpenSignal) {
+		if (showEditDialogOpen) closeEditDialog();
+		if (showCancelDialogOpen) closeCancelDialog();
+		handledOpenId = null;
+	}
+});
+
   function showCancelDialog(reservation: Reservation) {
     reservationToCancel = reservation;
     showCancelDialogOpen = true;
@@ -97,6 +132,7 @@
 
   function showEditDialog(reservation: Reservation) {
     reservationToEdit = reservation;
+    editBookingName = reservation.booking_name || reservation.reservation_type_display || reservation.reservation_type;
     const dateValue = reservation.date;
     editDate = dateValue instanceof Date ? dateValue.toISOString().split('T')[0] : String(dateValue);
     editStartTime = reservation.start_time;
@@ -110,6 +146,7 @@
     
     try {
       await updateReservation(reservationToEdit.id, {
+        booking_name: editBookingName,
         date: editDate,
         start_time: editStartTime,
         end_time: editEndTime,
@@ -134,9 +171,13 @@
     reservationToEdit = null;
   }
 
-  // Get user's reservations only (sorted by date descending for cards)
+  // Get user's reservations only (sorted by updated_at - most recently updated first)
   let userReservations = $derived.by(() => {
-    return [...$reservations].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return [...$reservations].sort((a, b) => {
+      const dateA = new Date(a.updated_at).getTime();
+      const dateB = new Date(b.updated_at).getTime();
+      return dateB - dateA; // Most recent first
+    });
   });
 
   // Table sorting and filtering (separate from cards)
@@ -147,6 +188,7 @@
     if (searchTerm) {
       filtered = filtered.filter(r =>
         r.id.toString().includes(searchTerm) ||
+        (r.booking_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (r.reservation_type_display || r.reservation_type).toLowerCase().includes(searchTerm.toLowerCase()) ||
         (r.status_display || r.status || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
@@ -253,7 +295,7 @@
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 				{#each userReservations.slice(0, 3) as reservation}
 					<ReservationDetailCard
-						bookingName={reservation.reservation_type_display || reservation.reservation_type}
+						bookingName={reservation.booking_name || reservation.reservation_type_display || reservation.reservation_type}
 						userWhoBooked={typeof reservation.user === 'object' ? reservation.user.email : reservation.user}
 						bookingStatus={reservation.status_display || reservation.status || 'pending'}
 						rawStatus={reservation.status || 'PENDING'}
@@ -314,6 +356,12 @@
 									<DropdownMenu.CheckboxItem bind:checked={visibleColumns.status}>
 										Status
 									</DropdownMenu.CheckboxItem>
+                  <DropdownMenu.CheckboxItem bind:checked={visibleColumns.notes}>
+                  Notes
+                </DropdownMenu.CheckboxItem>
+                <DropdownMenu.CheckboxItem bind:checked={visibleColumns.rejection}>
+                  Rejection
+                </DropdownMenu.CheckboxItem>
 									<DropdownMenu.CheckboxItem bind:checked={visibleColumns.actions}>
 										Actions
 									</DropdownMenu.CheckboxItem>
@@ -357,6 +405,12 @@
 												</button>
 											</Table.Head>
 										{/if}
+                    {#if visibleColumns.notes}
+                      <Table.Head>Notes</Table.Head>
+                    {/if}
+                    {#if visibleColumns.rejection}
+                      <Table.Head>Rejection Reason</Table.Head>
+                    {/if}
 										{#if visibleColumns.actions}
 											<Table.Head class="text-right">Actions</Table.Head>
 										{/if}
@@ -482,6 +536,10 @@
 		</Dialog.Header>
 		
 		<div class="space-y-4 py-4">
+			<div>
+				<label for="edit-booking-name" class="block text-sm font-medium mb-1">Booking Name</label>
+				<Input id="edit-booking-name" type="text" bind:value={editBookingName} placeholder="e.g., Team Meeting, Workshop" />
+			</div>
 			<div>
 				<label for="edit-date" class="block text-sm font-medium mb-1">Date</label>
 				<Input id="edit-date" type="date" bind:value={editDate} />

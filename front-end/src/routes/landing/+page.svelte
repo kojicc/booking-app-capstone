@@ -155,33 +155,39 @@
       </div>
       
       <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-        <div class="relative">
-          <div class="bg-white rounded-xl p-8 shadow-lg border-2 border-purple-100 hover:border-purple-300 transition-colors">
-            <div class="absolute -top-4 -left-4 bg-[#6B2AB9] text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl shadow-lg">
-              1
+        <div>
+          <div class="bg-white rounded-xl p-8 shadow-lg border-2 border-purple-100 hover:border-purple-300 transition-colors flex flex-col h-full">
+            <div class="flex items-start gap-4">
+              <div class="bg-[#6B2AB9] text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl shadow-lg flex-shrink-0">1</div>
+              <div class="flex-1">
+                <h3 class="text-2xl font-semibold mb-3 mt-0 text-gray-900">Sign Up</h3>
+                <p class="text-gray-600">Create your free account in less than a minute. No credit card required.</p>
+              </div>
             </div>
-            <h3 class="text-2xl font-semibold mb-3 mt-4 text-gray-900">Sign Up</h3>
-            <p class="text-gray-600">Create your free account in less than a minute. No credit card required.</p>
           </div>
         </div>
-        
-        <div class="relative">
-          <div class="bg-white rounded-xl p-8 shadow-lg border-2 border-purple-100 hover:border-purple-300 transition-colors">
-            <div class="absolute -top-4 -left-4 bg-[#6B2AB9] text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl shadow-lg">
-              2
+
+        <div>
+          <div class="bg-white rounded-xl p-8 shadow-lg border-2 border-purple-100 hover:border-purple-300 transition-colors flex flex-col h-full">
+            <div class="flex items-start gap-4">
+              <div class="bg-[#6B2AB9] text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl shadow-lg flex-shrink-0">2</div>
+              <div class="flex-1">
+                <h3 class="text-2xl font-semibold mb-3 mt-0 text-gray-900">Choose Date & Time</h3>
+                <p class="text-gray-600">Browse available slots and select the perfect time for your event.</p>
+              </div>
             </div>
-            <h3 class="text-2xl font-semibold mb-3 mt-4 text-gray-900">Choose Date & Time</h3>
-            <p class="text-gray-600">Browse available slots and select the perfect time for your event.</p>
           </div>
         </div>
-        
-        <div class="relative">
-          <div class="bg-white rounded-xl p-8 shadow-lg border-2 border-purple-100 hover:border-purple-300 transition-colors">
-            <div class="absolute -top-4 -left-4 bg-[#6B2AB9] text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl shadow-lg">
-              3
+
+        <div>
+          <div class="bg-white rounded-xl p-8 shadow-lg border-2 border-purple-100 hover:border-purple-300 transition-colors flex flex-col h-full">
+            <div class="flex items-start gap-4">
+              <div class="bg-[#6B2AB9] text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl shadow-lg flex-shrink-0">3</div>
+              <div class="flex-1">
+                <h3 class="text-2xl font-semibold mb-3 mt-0 text-gray-900">Get Confirmed</h3>
+                <p class="text-gray-600">Receive instant confirmation or await approval for primetime slots.</p>
+              </div>
             </div>
-            <h3 class="text-2xl font-semibold mb-3 mt-4 text-gray-900">Get Confirmed</h3>
-            <p class="text-gray-600">Receive instant confirmation or await approval for primetime slots.</p>
           </div>
         </div>
       </div>

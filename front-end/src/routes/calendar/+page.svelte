@@ -12,9 +12,8 @@
 	import { toast } from 'svelte-sonner';
 	// @ts-ignore - Event calendar library has no type definitions
 	import {Calendar, TimeGrid} from '@event-calendar/core';
-	import {showReservationModal, showSuccessModal, showAwaitingModal} from '$lib/stores/reservation';
 
-
+	import ReservationsCalendar from './ReservationsCalendar.svelte';
 
     let options = $state({
 		
@@ -102,8 +101,11 @@ function handleModalClose() {
 			</button>
 		</header>
 
-		<!-- @ts-ignore - Calendar component from JS library -->
-		<Calendar plugins={[TimeGrid]} {options} />
+
+
+		<!-- <Calendar plugins={[TimeGrid]} {options} /> -->
+		<ReservationsCalendar />
+
 
 		{#if $showReservationModal}
 			<ReservationModal open={$showReservationModal} onClose={handleModalClose} onSuccess={handleReservationSuccess} />

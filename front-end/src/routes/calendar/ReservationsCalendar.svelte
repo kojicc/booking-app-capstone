@@ -22,7 +22,7 @@ let options = $state({
     nowIndicator: true,       // Shows current time line
 });
 
-$inspect(options);
+
 /* eventClick: handleEventClick
    optional in future: Handle clicks on events to show details
 */

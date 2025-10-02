@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Badge } from "$lib/components/ui/badge";
   
-  type ReservationStatus = 'confirmed' | 'pending' | 'rejected';
+  type ReservationStatus = 'confirmed' | 'pending' | 'rejected' | 'cancelled' | 'completed';
   
   interface Status {
     class: string;
@@ -21,6 +21,14 @@
     rejected: {
       class: "bg-red-500/10 text-red-600",
       label: "Rejected"
+    },
+    cancelled: {
+      class: "bg-gray-500/10 text-gray-600",
+      label: "Cancelled"
+    },
+    completed: {
+      class: "bg-blue-500/10 text-blue-600",
+      label: "Completed"
     }
   };
   

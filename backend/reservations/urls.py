@@ -66,10 +66,9 @@ urlpatterns = [
     path('admin/settings/', CalendarSettingsView.as_view(), name='calendar-settings'),
     
     # ===================== DASHBOARD ENDPOINTS =====================
-    # GET /api/reservations/dashboard/ - User dashboard
-    path('dashboard/', UserDashboardView.as_view(), name='user-dashboard'),
-
+    # GET /api/reservations/dashboard/user/ - User dashboard
+    path('dashboard/user/', UserDashboardView.as_view(), name='user-dashboard'),
     
-    # GET /api/reservations/admin/dashboard/ - Admin dashboard
-    path('admin/dashboard/', AdminDashboardView.as_view(), name='admin-dashboard'),
+    # GET /api/reservations/dashboard/admin/ - Admin dashboard
+    path('dashboard/admin/', AdminDashboardView.as_view(), name='admin-dashboard'),
 ]

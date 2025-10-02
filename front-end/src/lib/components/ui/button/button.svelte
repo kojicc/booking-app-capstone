@@ -7,8 +7,7 @@
 		base: "focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium outline-none transition-all focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
 		variants: {
 			variant: {
-				   default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-				   custom: "bg-primary-200-var text-white shadow-xs hover:bg-primary-300-var",
+				default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
 				destructive:
 					"bg-destructive shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60 text-white",
 				outline:
@@ -72,13 +71,6 @@
 		bind:this={ref}
 		data-slot="button"
 		class={cn(buttonVariants({ variant, size }), className)}
-		style={
-		  className?.includes('bg-primary-200-var')
-			? 'background-color: var(--primary-200);'
-			: className?.includes('bg-primary-100-var')
-			  ? 'background-color: var(--primary-300);'
-			  : undefined
-		}
 		{type}
 		{disabled}
 		{...restProps}

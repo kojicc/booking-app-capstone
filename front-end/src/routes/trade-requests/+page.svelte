@@ -1,11 +1,14 @@
 
 <script lang="ts">
 	import AppSidebar from "$lib/components/app-sidebar.svelte";
+	import AuthGuard from "$lib/components/AuthGuard.svelte";
 	import * as Breadcrumb from "$lib/components/ui/breadcrumb/index.js";
+	import * as Alert from "$lib/components/ui/alert";
 	import { Separator } from "$lib/components/ui/separator/index.js";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 	import { page } from "$app/stores";
-	import Plus from "@lucide/svelte/icons/plus";
+	import { Construction } from "lucide-svelte";
+	
 	// Map path to label for breadcrumb
 	const pathToLabel = {
 		"/dashboard": "Dashboard",
@@ -20,6 +23,7 @@
 	};
 </script>
 
+<AuthGuard>
 <Sidebar.Provider>
 	<AppSidebar />
 	<Sidebar.Inset>
@@ -39,13 +43,27 @@
 							</Breadcrumb.Root>
 						</div>
 					</div>
-					<button class="bg-primary-200-var hover:bg-primary-300-var text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2 text-sm shadow transition-colors">
-						<Plus  class="h-4 w-4" />
-						Go to Calendar
-					</button>
 				</header>
-				<div class="flex flex-1 flex-col gap-4 p-4 pt-0">
-					<!-- Main content here -->
+				<div class="flex flex-1 flex-col gap-4 p-4">
+					<!-- Development Notice -->
+					<Alert.Root class="border-amber-200 bg-amber-50">
+						<Construction class="h-5 w-5 text-amber-600" />
+						<Alert.Title class="text-amber-900">Feature In Development</Alert.Title>
+						<Alert.Description class="text-amber-800">
+							The Trade Requests feature is currently under development and will be available soon! 
+							This feature will allow you to swap reservations with other users. Stay tuned!
+						</Alert.Description>
+					</Alert.Root>
+					
+					<!-- Placeholder content -->
+					<div class="flex items-center justify-center min-h-[400px] border-2 border-dashed rounded-lg">
+						<div class="text-center text-muted-foreground">
+							<Construction class="h-16 w-16 mx-auto mb-4 opacity-50" />
+							<h3 class="text-lg font-semibold mb-2">Coming Soon</h3>
+							<p>Trade request management will be here shortly.</p>
+						</div>
+					</div>
 				</div>
 	</Sidebar.Inset>
 </Sidebar.Provider>
+</AuthGuard>

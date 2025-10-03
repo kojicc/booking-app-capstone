@@ -145,60 +145,55 @@ function isDateAvailable(dateValue: CalendarDate): boolean {
 
 // Reactive data loading and time slot management
 let loadingSlots = $state(false);
-let fetchedRanges = $state<Set<string>>(new Set());
+let currentCachedMonth = $state<string | null>(null); // Track which month is currently cached (format: YYYY-MM)
 
-// Prefetch calendar data on component mount to populate calendar availability  
+// Helper to get month key from a date
+function getMonthKey(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Helper to fetch month data
+async function fetchMonthData(year: number, month: number) {
+  const startOfMonth = new Date(year, month, 1).toISOString().split('T')[0];
+  const endOfMonth = new Date(year, month + 1, 0).toISOString().split('T')[0];
+  
+  try {
+    const response = await getCalendar(startOfMonth, endOfMonth);
+    calendarData = response.calendar;
+    currentCachedMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
+  } catch (error) {
+    console.error('Failed to fetch calendar:', error);
+    calendarData = [];
+  }
+}
+
+// Prefetch current month on component mount
 $effect(() => {
-  async function prefetchCalendarData() {
+  async function prefetchCurrentMonth() {
     loadingSlots = true;
     const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-    const rangeKey = `${startOfMonth}_${endOfMonth}`;
-    
-    if (!fetchedRanges.has(rangeKey)) {
-      try {
-        const response = await getCalendar(startOfMonth, endOfMonth);
-        calendarData = response.calendar;
-        fetchedRanges.add(rangeKey);
-      } catch (error) {
-        console.error('Failed to prefetch calendar:', error);
-      }
-    }
+    await fetchMonthData(today.getFullYear(), today.getMonth());
     loadingSlots = false;
   }
-  prefetchCalendarData();
+  prefetchCurrentMonth();
 });
 
-// Load available slots when date changes
+// Load month data when date changes to a different month
 $effect(() => {
   async function loadCalendarData() {
     if (date) {
-      // Check if we already have data for this date
-      const existingData = calendarData.find(day => day.date === date);
+      const monthKey = getMonthKey(date);
       
-      if (!existingData) {
-        // Calculate month range for this date
+      // If the selected date is in a different month than cached, fetch that month
+      if (monthKey !== currentCachedMonth) {
+        loadingSlots = true;
         const selectedDate = new Date(date);
-        const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1).toISOString().split('T')[0];
-        const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).toISOString().split('T')[0];
-        const rangeKey = `${startOfMonth}_${endOfMonth}`;
-        
-        // Only fetch if we haven't fetched this range
-        if (!fetchedRanges.has(rangeKey)) {
-          loadingSlots = true;
-          try {
-            const response = await getCalendar(startOfMonth, endOfMonth);
-            calendarData = response.calendar;
-            fetchedRanges.add(rangeKey);
-          } catch (error) {
-            console.error('Failed to fetch calendar:', error);
-          }
-          loadingSlots = false;
-        }
+        await fetchMonthData(selectedDate.getFullYear(), selectedDate.getMonth());
+        loadingSlots = false;
       }
       
-      // Get slots from existing or newly fetched data
+      // Get slots from cached data
       availableSlots = await getAvailableTimeSlots(date);
     } else {
       availableSlots = [];

@@ -25,6 +25,9 @@ let step = $state(1);
 let loading = $state(false);
 let errorMessage = $state('');
 
+// server-side validation error to show inline in booking step
+let serverSideError = $state<string | null>(null);
+
 // Form state - centralized here and passed to components
 
 let formData: Reservation | null = null;
@@ -158,15 +161,10 @@ function handleConfirm() {
 
 // Reset step when modal closes
 $effect(() => {
-  if (!open) step = 1;
-});
-
-$effect(() => {
-  if ($clearOpenSignal) {
-    // If parent asked to clear open signals, make sure modal is closed and reset
-    open = false;
+  if (!open) {
     step = 1;
     errorMessage = '';
+    serverSideError = null;
   }
 });
 

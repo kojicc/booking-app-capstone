@@ -138,6 +138,15 @@ export async function logout() {
 		setAccessToken(null);
 	}
 }
+
+// Get current user info
+export async function getCurrentUser() {
+	return apiFetch('/api/users/me/', {
+		method: 'GET',
+		credentials: 'include'
+	});
+}
+
 export async function register(payload: {
 	email: string;
 	password: string;
@@ -171,13 +180,10 @@ export async function refreshAccessToken() {
 
 //calendar api functions
 export async function getCalendar(startDate: string, endDate: string) {
-  return apiFetch(
-    `/api/reservations/calendar/?start_date=${startDate}&end_date=${endDate}`,
-    {
-      method: 'GET',
-      credentials: 'include'
-    }
-  );
+	return apiFetch(`/api/reservations/calendar/?start_date=${startDate}&end_date=${endDate}`, {
+		method: 'GET',
+		credentials: 'include'
+	});
 }
 
 export default { postBooking, login, register, getCalendar };

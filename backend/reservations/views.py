@@ -86,6 +86,7 @@ class ReservationListView(APIView):
         # Require authentication to create reservations
         if not request.user or not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
+        
         serializer = ReservationCreateSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             try:
@@ -172,7 +173,7 @@ class ReservationDetailView(APIView):
         
         if not reservation.is_editable():
             return Response(
-                {'error': 'This reservation cannot be edited'}, 
+                {'error': 'This reservation cannot be edited due to its status or date constraints.'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -206,7 +207,7 @@ class ReservationDetailView(APIView):
         
         if not reservation.is_editable():
             return Response(
-                {'error': 'This reservation cannot be cancelled'}, 
+                {'error': 'This reservation cannot be cancelled due to its status or date constraints.'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         

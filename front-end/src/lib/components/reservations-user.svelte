@@ -433,7 +433,8 @@ $effect(() => {
 											{/if}
 											{#if visibleColumns.status}
 												<Table.Cell>
-													<span class="inline-flex px-2 py-1 text-xs rounded-full {reservation.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' : reservation.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
+													<span class="inline-flex px-2 py-1 text-xs rounded-full {reservation.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' : reservation.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : reservation.status === 'REJECTED' || reservation.status === 'CANCELLED' ? 'bg-red-100 text-red-800' : reservation.status === 'COMPLETED' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800'}" 
+													>
 														{reservation.status_display || reservation.status}
 													</span>
 												</Table.Cell>

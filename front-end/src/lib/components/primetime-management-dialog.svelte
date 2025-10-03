@@ -8,7 +8,7 @@ import * as AlertDialog from "$lib/components/ui/alert-dialog";
 import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
 import { Label } from "$lib/components/ui/label/index.js";
 import { Input } from "$lib/components/ui/input/index.js";
-import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
+import { ScrollArea } from "$lib/components/ui/scroll-area";
 import * as Table from "$lib/components/ui/table";
 import { 
   getPrimeTimeSettings, 

@@ -53,6 +53,33 @@ class ReservationSerializer(serializers.ModelSerializer):
         if value < date.today():
             raise serializers.ValidationError("Cannot book dates in the past")
         return value
+
+    def validate(self, data):
+        """Ensure the requested slot doesn't overlap with existing reservations
+        that are CONFIRMED or PENDING for the same date.
+        """
+        # Ensure required fields are present for overlap checking
+        date_val = data.get('date')
+        start_time = data.get('start_time')
+        end_time = data.get('end_time')
+
+        if date_val and start_time and end_time:
+            overlapping = Reservation.objects.filter(
+                date=date_val,
+                status__in=['CONFIRMED', 'PENDING']
+            )
+
+            # If serializer is used for update, exclude the instance
+            instance = getattr(self, 'instance', None)
+            if instance:
+                overlapping = overlapping.exclude(pk=instance.pk)
+
+            for res in overlapping:
+                # overlapping if start < existing_end and end > existing_start
+                if (start_time < res.end_time and end_time > res.start_time):
+                    raise serializers.ValidationError("This time slot overlaps with an existing reservation")
+
+        return data
     
     def validate(self, data):
         # Additional validation can be added here

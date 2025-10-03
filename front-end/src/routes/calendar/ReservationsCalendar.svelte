@@ -4,6 +4,7 @@ import {Calendar, TimeGrid} from '@event-calendar/core';
 import { user } from '$lib/stores/user';
 import { onMount } from 'svelte';
 import { getCalendar } from '$lib/api/index';
+import { invalidateCalendarCache } from '$lib/stores/reservation';
 
 let ec = $state<any>();
 let loading = $state(true);
@@ -29,6 +30,13 @@ let options = $state({
 onMount(async () => {
     await loadCalendarData();
   });
+
+// Reload calendar data when cache is invalidated (e.g., after creating/updating a reservation)
+$effect(() => {
+	if ($invalidateCalendarCache) {
+		loadCalendarData();
+	}
+});
 
 function formatDate(date: Date): string {
     // Format date as YYYY-MM-DD for the API

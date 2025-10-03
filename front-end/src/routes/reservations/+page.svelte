@@ -8,8 +8,7 @@
 	import Plus from "@lucide/svelte/icons/plus";
 	import { Clock } from "lucide-svelte";
 	import { user } from '$lib/stores/user';
-	import { showReservationModal, showSuccessModal } from '$lib/stores/reservation';
-	import { clearOpenSignal } from '$lib/stores/reservation';
+	import { showReservationModal, showSuccessModal, resetAllModals } from '$lib/stores/reservation';
 	import ReservationModal from '$lib/components/reservation-modal.svelte';
 	import AdminReservations from '$lib/components/reservations-admin.svelte';
 	import UserReservations from '$lib/components/reservations-user.svelte';
@@ -59,7 +58,8 @@ let isAdmin = $derived($user?.role === 'admin');
 async function loadTodayPrimetime() {
 	try {
 		const settings = await getPrimeTimeSettings();
-		const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
+		const today = new Date().getDay(); 
+		// 0 = Sunday, 1 = Monday, etc.
 		// Backend uses 0 = Monday, so convert: Sunday=6, Monday=0, Tuesday=1, etc.
 		const backendWeekday = today === 0 ? 6 : today - 1;
 		
@@ -113,12 +113,12 @@ async function handleReservationSuccess(bookedTime?: string|Date|number|null, pr
 		// ignore
 	}
 
-	// Force child components to refresh by incrementing key
-	// First notify children to clear any lingering open state
-	clearOpenSignal.update(n => n + 1);
+	// Reset all modal states and invalidate cache to ensure clean state for next interactions
+	resetAllModals();
+	
 	// Ensure parent prop is cleared so children remount without the id
 	openReservationId = null;
-	// Then force child components to refresh by incrementing key
+	// Force child components to refresh by incrementing key
 	refreshKey++;
 	// Reload primetime badge
 	loadTodayPrimetime();
@@ -187,7 +187,6 @@ $effect(() => {
 							<PrimetimeManagement onSuccess={loadTodayPrimetime} />
 						</div>
 				<div class="flex flex-1 flex-col gap-4 p-4 pt-0">
-					<!-- Main content here -->
 
 					{#if $user?.role === 'admin'}
 						{#key refreshKey}

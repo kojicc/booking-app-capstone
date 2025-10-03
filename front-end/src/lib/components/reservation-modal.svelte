@@ -8,6 +8,7 @@ import { toast } from 'svelte-sonner';
 import type {Reservation} from '$lib/api/reservation';
   import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
 import { clearOpenSignal } from '$lib/stores/reservation';
+import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 
 
 
@@ -210,7 +211,7 @@ $effect(() => {
       </div>
     </Dialog.Header>
 
-    <div class="flex-1 overflow-y-auto -mx-6 px-6">
+    <ScrollArea >
       {#if step === 1}
         <DateTimeStep
           bind:bookingName
@@ -236,7 +237,8 @@ $effect(() => {
           {totalCost}
         />
       {/if}
-    </div>
+          </ScrollArea>
+
 
     <Dialog.Footer class="mt-4 flex justify-between">
      

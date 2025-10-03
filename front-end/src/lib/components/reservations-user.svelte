@@ -2,12 +2,11 @@
 	import { onMount } from 'svelte';
   import ReservationDetailCard from "$lib/components/ReservationDetailCard.svelte";
   import { getReservations, deleteReservation, updateReservation } from '$lib/api/reservation';
-  import { reservations } from '$lib/stores/reservation';
+  import { reservations, clearOpenSignal, invalidateCalendarCache } from '$lib/stores/reservation';
   import { user } from '$lib/stores/user';
   import type { Reservation } from '$lib/api/reservation';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
-	import { clearOpenSignal } from '$lib/stores/reservation';
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Dialog from "$lib/components/ui/dialog";
   import * as Table from "$lib/components/ui/table";
@@ -16,44 +15,47 @@
   import { Input } from "$lib/components/ui/input";
   import { MoreHorizontal, Edit, Trash2 } from 'lucide-svelte';
 
-		let { openReservationId = null }: { openReservationId?: number | null } = $props();
+	let { openReservationId = null }: { openReservationId?: number | null } = $props();
 
-		let loading = $state(false);
-		let handledOpenId = $state<number | null>(null);
-  let error = $state<string | null>(null);
-  
-  // Dialog state
-  let showCancelDialogOpen = $state(false);
-  let reservationToCancel = $state<Reservation | null>(null);
-  
-  let showEditDialogOpen = $state(false);
-  let reservationToEdit = $state<Reservation | null>(null);
-  
-  // Edit form state
-  let editBookingName = $state('');
-  let editDate = $state('');
-  let editStartTime = $state('');
-  let editEndTime = $state('');
-  let editNotes = $state('');
-  
-  // Table functionality
-  let searchTerm = $state('');
-  let sortColumn = $state<'id' | 'type' | 'date' | 'status' | null>(null);
-  let sortDirection = $state<'asc' | 'desc'>('asc');
-  let currentPage = $state(0);
-  let pageSize = $state(10);
-  
-  // Column visibility
-  let visibleColumns = $state({
-    id: true,
-    type: true,
-    date: true,
-    time: true,
-    status: true,
-    notes: true,
-    rejection: true,
-    actions: true
-  });
+	let loading = $state(false);
+	let handledOpenId = $state<number | null>(null);
+	let error = $state<string | null>(null);
+	
+	// Dialog state
+	let showCancelDialogOpen = $state(false);
+	let reservationToCancel = $state<Reservation | null>(null);
+	
+	let showEditDialogOpen = $state(false);
+	let reservationToEdit = $state<Reservation | null>(null);
+	
+	// Track previous clearOpenSignal value to detect actual changes
+	let prevClearOpenSignal = $state(0);
+	
+	// Edit form state
+	let editBookingName = $state('');
+	let editDate = $state('');
+	let editStartTime = $state('');
+	let editEndTime = $state('');
+	let editNotes = $state('');
+	
+	// Table functionality
+	let searchTerm = $state('');
+	let sortColumn = $state<'id' | 'type' | 'date' | 'status' | null>(null);
+	let sortDirection = $state<'asc' | 'desc'>('asc');
+	let currentPage = $state(0);
+	let pageSize = $state(10);
+	
+	// Column visibility
+	let visibleColumns = $state({
+		id: true,
+		type: true,
+		date: true,
+		time: true,
+		status: true,
+		notes: true,
+		rejection: true,
+		actions: true
+	});
 
   async function loadReservations() {
     loading = true;
@@ -103,10 +105,12 @@ $effect(() => {
 });
 
 $effect(() => {
-	if ($clearOpenSignal) {
+	// Only close dialogs when clearOpenSignal actually changes (increments)
+	if ($clearOpenSignal !== prevClearOpenSignal) {
 		if (showEditDialogOpen) closeEditDialog();
 		if (showCancelDialogOpen) closeCancelDialog();
 		handledOpenId = null;
+		prevClearOpenSignal = $clearOpenSignal;
 	}
 });
 
@@ -124,6 +128,8 @@ $effect(() => {
       showCancelDialogOpen = false;
       reservationToCancel = null;
       await loadReservations();
+      // Invalidate calendar cache so deleted reservation is removed from calendar
+      invalidateCalendarCache.update(n => n + 1);
     } catch (e: any) {
       const errorMsg = e?.message || 'Failed to cancel reservation';
       toast.error(errorMsg);
@@ -155,6 +161,8 @@ $effect(() => {
       toast.success(`Reservation #${reservationToEdit.id} updated successfully`);
       closeEditDialog();
       await loadReservations();
+      // Invalidate calendar cache so updated reservation shows new time/date
+      invalidateCalendarCache.update(n => n + 1);
     } catch (e: any) {
       const errorMsg = e?.message || 'Failed to update reservation';
       toast.error(errorMsg);

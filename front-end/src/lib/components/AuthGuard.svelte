@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import { Button } from "$lib/components/ui/button";
+  import { refreshAccessToken, getCurrentUser } from '$lib/api/index';
 
   interface Props {
     requiredRole?: 'admin' | 'user';
@@ -17,11 +18,54 @@
   let showAuthAlert = $state(false);
 
   onMount(() => {
-    const checkAuth = () => {
+    const checkAuth = async () => {
       isChecking = true;
       
       // Check if user is logged in
       if (!$user) {
+        // Try to refresh the access token and fetch user info
+        try {
+          console.log('🔄 User not in store, attempting token refresh...');
+          const newAccessToken = await refreshAccessToken();
+          if (newAccessToken) {
+            console.log('✅ Token refreshed successfully, fetching user info...');
+            // Token refresh successful, now fetch user info
+            const userData = await getCurrentUser();
+            if (userData) {
+              console.log('✅ User data fetched:', userData);
+              // Update user store with fetched data
+              user.set({
+                id: userData.id,
+                email: userData.email,
+                name: userData.first_name && userData.last_name 
+                  ? `${userData.first_name} ${userData.last_name}` 
+                  : userData.email,
+                role: userData.role,
+                avatar: undefined
+              });
+              
+              // Check role requirement after setting user
+              if (requiredRole && userData.role !== requiredRole) {
+                isAuthorized = false;
+                isChecking = false;
+                if (userData.role === 'admin') {
+                  goto('/dashboard');
+                } else {
+                  goto('/reservations');
+                }
+                return;
+              }
+              
+              isAuthorized = true;
+              isChecking = false;
+              return;
+            }
+          }
+        } catch (error) {
+          console.log('❌ Token refresh or user fetch failed:', error);
+        }
+        
+        // Token refresh failed or user still not available
         isAuthorized = false;
         isChecking = false;
         showAuthAlert = true;

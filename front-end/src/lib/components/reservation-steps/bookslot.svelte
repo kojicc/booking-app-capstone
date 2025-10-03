@@ -1,11 +1,11 @@
 <script lang="ts">
 import { getCalendar, type CalendarDay, type TimeSlot } from "$lib/api/reservation";
 import * as Popover from "$lib/components/ui/popover";
-import * as Calendar from "$lib/components/ui/calendar";
+import Calendar from "$lib/components/ui/calendar/calendar.svelte";
 import * as Select from "$lib/components/ui/select";
 import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 import { Calendar as CalendarIcon } from "lucide-svelte";
-import { DateFormatter, type DateValue, getLocalTimeZone } from "@internationalized/date";
+import { DateFormatter, CalendarDate, getLocalTimeZone } from "@internationalized/date";
 import { cn } from "$lib/utils";
 
 interface Props {
@@ -44,18 +44,58 @@ let manualEndInput = $state('');
 let debounceTimer: number | null = null;
 
 // Date restrictions
-let minDate = $state(new Date().toISOString().split('T')[0]); // Today's date
+// Use local date (not toISOString which uses UTC) to avoid timezone drift where
+// minDate could be the previous day in some timezones.
+const _localToday = new Date();
+const _pad = (n: number) => String(n).padStart(2, '0');
+let minDate = $state(`${_localToday.getFullYear()}-${_pad(_localToday.getMonth() + 1)}-${_pad(_localToday.getDate())}`);
 
 // shadcn calendar state
 const df = new DateFormatter("en-US", { dateStyle: "long" });
-let value = $state<DateValue | undefined>();
+// Initialize calendar to today's date so the picker opens on current month
+const _today = new Date();
+let value = $state<CalendarDate | undefined>(new CalendarDate(_today.getFullYear(), _today.getMonth() + 1, _today.getDate()));
 let contentRef = $state<HTMLElement | null>(null);
+// control popover open state to avoid duplicate renderings
+let popoverOpen = $state(false);
 
 // convert selected DateValue to ISO date string used by API and bindings
 $effect(() => {
   if (value) {
     // value.toString() returns ISO date yyyy-mm-dd
     date = value.toString();
+  }
+});
+
+// If the `date` string changes (for example from parent props or saved form state),
+// make sure the CalendarDate `value` reflects it so the picker opens to correct month.
+$effect(() => {
+  if (date) {
+    try {
+      const parts = String(date).split('-').map(Number);
+      if (parts.length === 3) {
+        const [y, m, d] = parts;
+        const parsed = new CalendarDate(y, m, d);
+        if (!value || value.toString() !== parsed.toString()) {
+          value = parsed;
+        }
+      }
+    } catch (e) {
+      // ignore invalid date formats
+    }
+  }
+});
+
+// Prevent selecting past dates by coercing value to minDate when necessary
+$effect(() => {
+  if (value) {
+    const dateStr = value.toString();
+    if (minDate && dateStr < minDate) {
+      // reset to minDate
+      const parts = minDate.split('-').map(Number);
+      value = new CalendarDate(parts[0], parts[1], parts[2]);
+      date = minDate;
+    }
   }
 });
 
@@ -89,9 +129,13 @@ async function getAvailableTimeSlots(selectedDate: string): Promise<TimeSlot[]> 
 }
 
 // Check if a date has any available slots
-function isDateAvailable(dateValue: DateValue): boolean {
+function isDateAvailable(dateValue: CalendarDate): boolean {
   if (!dateValue) return false;
   const dateStr = dateValue.toString();
+
+  // Disallow dates earlier than minDate (past dates)
+  if (minDate && dateStr < minDate) return false;
+
   const dayData = calendarData.find(day => day.date === dateStr);
   // If date is not in calendarData yet, assume it's available (will be fetched when selected)
   // Only mark as unavailable if we have the data AND all slots are unavailable
@@ -166,7 +210,9 @@ $effect(() => {
 
 // Time slot selection functions
 function toggleTimeSlot(slot: TimeSlot) {
-  const slotKey = `${slot.start_time} - ${slot.end_time}`;
+  // Normalize times to HH:MM (drop seconds) so display and comparisons match
+  const fmt = (t: string) => t.split(':').slice(0,2).join(':');
+  const slotKey = `${fmt(slot.start_time)} - ${fmt(slot.end_time)}`;
   
   if (selectedTimes.includes(slotKey)) {
     selectedTimes = selectedTimes.filter(t => t !== slotKey);
@@ -311,7 +357,7 @@ function onManualEndInput(v: string) {
     <div>
       <label for="reservation-date" class="block text-sm font-medium mb-1">Date of Reservation</label>
       <input id="reservation-date" class="sr-only" type="text" bind:value={date} aria-hidden="true" />
-      <Popover.Root>
+  <Popover.Root bind:open={popoverOpen}>
         <Popover.Trigger id="reservation-date-trigger"
           class={cn(
             "w-full justify-start text-left font-normal inline-flex items-center gap-2 px-3 py-2 border rounded-md",
@@ -325,13 +371,18 @@ function onManualEndInput(v: string) {
             Pick a date
           {/if}
         </Popover.Trigger>
-        <Popover.Content bind:ref={contentRef} class="w-auto max-w-[92vw] sm:max-w-[320px] p-2">
-          <Calendar.Calendar 
-            type="single" 
-            fixedWeeks  
-            bind:value 
-            isDateUnavailable={(dateValue) => !isDateAvailable(dateValue)}
-          />
+        <Popover.Content
+          bind:ref={contentRef}
+          class={'w-auto max-w-[92vw] sm:max-w-[320px] p-2 bg-white'}
+        >
+          {#if popoverOpen}
+            <Calendar
+              type="single"
+              bind:value
+              class="rounded-lg"
+              isDateUnavailable={(date) => !isDateAvailable(date as CalendarDate)}
+            />
+          {/if}
         </Popover.Content>
       </Popover.Root>
       {#if date}
@@ -380,7 +431,8 @@ function onManualEndInput(v: string) {
       <ScrollArea class="h-64 sm:h-72 w-full rounded-md border p-2">
         <div class="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
           {#each availableSlots as timeSlot}
-          {@const slotKey = `${timeSlot.start_time} - ${timeSlot.end_time}`}
+          {@const fmt = (t: string) => t.split(':').slice(0,2).join(':')}
+          {@const slotKey = `${fmt(timeSlot.start_time)} - ${fmt(timeSlot.end_time)}`}
           {@const isSelected = selectedTimes.includes(slotKey)}
           {@const isAvailable = timeSlot.available}
           {@const isPrimetime = timeSlot.type === 'PRIMETIME'}
@@ -392,7 +444,7 @@ function onManualEndInput(v: string) {
           }>
             <div class="flex items-center justify-between gap-1 sm:gap-2">
               <span class={
-                'text-xs sm:text-sm font-semibold break-all ' +
+                'text-xs sm:text-sm font-semibold whitespace-nowrap ' +
                 (isAvailable ? 'text-gray-900' : 'text-gray-500')
               }>
                 {slotKey}

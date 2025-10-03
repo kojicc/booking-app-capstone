@@ -5,7 +5,7 @@
   import { getReservations, approveReservation, rejectReservation } from '$lib/api/reservation';
   import { user } from '$lib/stores/user';
   import { toast } from 'svelte-sonner';
-  import { clearOpenSignal } from '$lib/stores/reservation';
+  import { clearOpenSignal, invalidateCalendarCache } from '$lib/stores/reservation';
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Dialog from "$lib/components/ui/dialog";
   import * as Table from "$lib/components/ui/table";
@@ -24,6 +24,9 @@
   let showRejectDialog = $state(false);
   let reservationToReject = $state<Reservation | null>(null);
   let rejectionReason = $state('');
+  
+  // Track previous clearOpenSignal value to detect actual changes
+  let prevClearOpenSignal = $state(0);
   
   // Table functionality
   let searchTerm = $state('');
@@ -70,6 +73,8 @@
       await approveReservation(reservation.id);
       toast.success(`Reservation #${reservation.id} approved successfully`);
       await loadReservations();
+      // Invalidate calendar cache so approved reservation appears on calendar
+      invalidateCalendarCache.update(n => n + 1);
     } catch (e: any) {
       const errorMsg = e?.message || 'Failed to approve reservation';
       toast.error(errorMsg);
@@ -97,6 +102,8 @@
       reservationToReject = null;
       rejectionReason = '';
       await loadReservations();
+      // Invalidate calendar cache so rejected reservation is removed from calendar
+      invalidateCalendarCache.update(n => n + 1);
     } catch (e: any) {
       const errorMsg = e?.message || 'Failed to reject reservation';
       toast.error(errorMsg);
@@ -241,10 +248,12 @@
   });
 
 $effect(() => {
-  if ($clearOpenSignal) {
+  // Only close dialogs when clearOpenSignal actually changes (increments)
+  if ($clearOpenSignal !== prevClearOpenSignal) {
     foundReservationDialogOpen = false;
     foundReservation = null;
     handledOpenId = null;
+    prevClearOpenSignal = $clearOpenSignal;
   }
 });
 </script>

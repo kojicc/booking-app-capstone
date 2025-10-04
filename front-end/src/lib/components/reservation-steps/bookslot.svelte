@@ -3,7 +3,7 @@ import { getCalendar, type CalendarDay, type TimeSlot } from "$lib/api/reservati
 import * as Popover from "$lib/components/ui/popover";
 import Calendar from "$lib/components/ui/calendar/calendar.svelte";
 import * as Select from "$lib/components/ui/select";
-import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
+import { ScrollArea } from "$lib/components/ui/scroll-area";
 import { Calendar as CalendarIcon } from "lucide-svelte";
 import { DateFormatter, CalendarDate, getLocalTimeZone } from "@internationalized/date";
 import { cn } from "$lib/utils";

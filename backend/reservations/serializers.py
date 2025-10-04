@@ -110,8 +110,33 @@ class ReservationCreateSerializer(serializers.ModelSerializer):
         return value
     
     def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
-        return super().create(validated_data)
+        from django.db import transaction
+
+        request = self.context.get('request')
+        user = request.user if request else None
+        validated_data['user'] = user
+
+        # Protect against race conditions by running overlap check and create inside
+        # a database transaction with a row-level lock on existing reservations
+        # for the same date. This uses select_for_update to serialize concurrent
+        # attempts that target the same date window.
+        date_val = validated_data.get('date')
+        start_time = validated_data.get('start_time')
+        end_time = validated_data.get('end_time')
+
+        with transaction.atomic():
+            if date_val and start_time and end_time:
+                overlapping_qs = Reservation.objects.select_for_update().filter(
+                    date=date_val,
+                    status__in=['CONFIRMED', 'PENDING']
+                )
+
+                # No need to exclude instance because this is creation
+                for res in overlapping_qs:
+                    if (start_time < res.end_time and end_time > res.start_time):
+                        raise serializers.ValidationError("This time slot overlaps with an existing reservation")
+
+            return super().create(validated_data)
 
 class TradeRequestSerializer(serializers.ModelSerializer):
     requester = UserBasicSerializer(read_only=True)

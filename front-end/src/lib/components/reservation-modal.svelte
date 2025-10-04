@@ -8,7 +8,7 @@ import { toast } from 'svelte-sonner';
 import type {Reservation} from '$lib/api/reservation';
   import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
 import { clearOpenSignal } from '$lib/stores/reservation';
-import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
+import { ScrollArea } from "$lib/components/ui/scroll-area";
 
 
 
@@ -209,36 +209,37 @@ $effect(() => {
       </div>
     </Dialog.Header>
 
-    <ScrollArea >
-      {#if step === 1}
-        <DateTimeStep
-          bind:bookingName
-          bind:date
-          bind:space
-          bind:startTime
-          bind:endTime
-          bind:primetimeSelected
-          {totalHours}
-          {totalCost}
-        />
-      {:else if step === 2}
-        <AddonsStep bind:selectedAddons />
-      {:else}
-        <ReviewStep
-          {bookingName}
-          {date}
-          {space}
-          {startTime}
-          {endTime}
-          {selectedAddons}
-          {totalHours}
-          {totalCost}
-        />
-      {/if}
-          </ScrollArea>
+    <ScrollArea class="flex-1 min-h-0 overflow-y-auto">
+      <div class="px-6 py-4">
+        {#if step === 1}
+          <DateTimeStep
+            bind:bookingName
+            bind:date
+            bind:space
+            bind:startTime
+            bind:endTime
+            bind:primetimeSelected
+            {totalHours}
+            {totalCost}
+          />
+        {:else if step === 2}
+          <AddonsStep bind:selectedAddons />
+        {:else}
+          <ReviewStep
+            {bookingName}
+            {date}
+            {space}
+            {startTime}
+            {endTime}
+            {selectedAddons}
+            {totalHours}
+            {totalCost}
+          />
+        {/if}
+      </div>
+    </ScrollArea>
 
-
-    <Dialog.Footer class="mt-4 flex justify-between">
+    <Dialog.Footer class="flex-shrink-0 mt-4 flex justify-between">
      
       <div class="flex gap-2">
         {#if step > 1}
@@ -298,3 +299,4 @@ $effect(() => {
     {/if}
   </Dialog.Content>
 </Dialog.Root>
+    

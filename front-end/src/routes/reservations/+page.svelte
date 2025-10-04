@@ -19,6 +19,7 @@
 	import { getPrimeTimeSettings } from '$lib/api/reservation';
 	import { toast } from "svelte-sonner";
 	import { goto } from '$app/navigation';
+	import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 
 	// Map path to label for breadcrumb
 	const pathToLabel = {
@@ -178,8 +179,10 @@ $effect(() => {
 
 				</header>
 							{#if $showReservationModal}
+    <ScrollArea class="h-[200px] w-[350px] rounded-md border p-4">
 			
 						<ReservationModal bind:open={$showReservationModal} onClose={handleModalClose} onSuccess={handleReservationSuccess} />
+						</ScrollArea>
 						{/if}
 
 						<!-- Hidden component instance to control primetime dialog programmatically -->

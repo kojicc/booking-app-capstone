@@ -10,6 +10,7 @@
   import * as Dialog from "$lib/components/ui/dialog";
   import * as Table from "$lib/components/ui/table";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { MoreHorizontal, CheckCircle, XCircle } from 'lucide-svelte';
@@ -385,7 +386,8 @@ $effect(() => {
         </div>
         
         <!-- Enhanced Table -->
-        <div class="rounded-md border overflow-x-auto">
+        <ScrollArea class="h-[500px] w-full rounded-md border">
+          <div class="w-full">
           <Table.Root>
             <Table.Header>
               <Table.Row>
@@ -506,7 +508,8 @@ $effect(() => {
               {/each}
             </Table.Body>
           </Table.Root>
-        </div>
+          </div>
+        </ScrollArea>
         
         <!-- Pagination -->
         <div class="flex items-center justify-between py-4">

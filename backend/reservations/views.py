@@ -59,32 +59,29 @@ class ReservationListView(APIView):
     permission_classes = [permissions.AllowAny]
     
     def get(self, request):
-        # Require authentication for listing user-specific reservations
-        if not request.user or not request.user.is_authenticated:
-            return Response(status=status.HTTP_401_UNAUTHORIZED)
+            if not request.user or not request.user.is_authenticated:
+                return Response(status=status.HTTP_401_UNAUTHORIZED)
 
-        queryset = Reservation.objects.all()
+            queryset = Reservation.objects.select_related('user', 'approved_by')
 
-        # Filter by user role
-        if request.user.role != 'admin':
-            queryset = queryset.filter(user=request.user)
-        
-        # Apply filters
-        date_filter = request.query_params.get('date')
-        status_filter = request.query_params.get('status')
-        user_filter = request.query_params.get('user')
-        
-        if date_filter:
-            queryset = queryset.filter(date=date_filter)
-        
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-        
-        if user_filter and request.user.role == 'admin':
-            queryset = queryset.filter(user__email__icontains=user_filter)
-        
-        serializer = ReservationSerializer(queryset, many=True)
-        return Response(serializer.data)
+            # Filter by role
+            if request.user.role != 'admin':
+                queryset = queryset.filter(user=request.user)
+            
+            # Apply filters
+            date_filter = request.query_params.get('date')
+            status_filter = request.query_params.get('status')
+            user_filter = request.query_params.get('user')
+            
+            if date_filter:
+                queryset = queryset.filter(date=date_filter)
+            if status_filter:
+                queryset = queryset.filter(status=status_filter)
+            if user_filter and request.user.role == 'admin':
+                queryset = queryset.filter(user__email__icontains=user_filter)
+
+            serializer = ReservationSerializer(queryset, many=True)
+            return Response(serializer.data)
     
     def post(self, request):
         """Create a new reservation"""

@@ -301,7 +301,8 @@ export function closeDialogPublic() {
                 No primetime settings yet. Add one above to get started.
               </div>
             {:else}
-              <div class="border rounded-lg">
+              <ScrollArea class="h-[400px] w-full rounded-lg border">
+                <div class="w-full">
                 <Table.Root>
                   <Table.Header>
                     <Table.Row>
@@ -352,7 +353,8 @@ export function closeDialogPublic() {
                     {/each}
                   </Table.Body>
                 </Table.Root>
-              </div>
+                </div>
+              </ScrollArea>
             {/if}
           </div>
         </div>

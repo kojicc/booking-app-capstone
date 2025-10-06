@@ -168,6 +168,59 @@ export async function getCalendar(startDate?: string, endDate?: string): Promise
 	}
 }
 
+// ------------------ CACHING HELPERS ------------------
+// Simple in-memory month cache to avoid refetching the same month repeatedly.
+// Keyed by YYYY-MM -> { fetchedAt, response }
+const monthCache: Map<string, { fetchedAt: number; response: CalendarResponse }> = new Map();
+
+function monthKeyFromDateStr(dateStr: string) {
+	const d = new Date(dateStr);
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Fetch calendar for a given month from cache or server.
+ * If force=true, always fetch from server and update cache.
+ */
+export async function getCalendarMonthCached(
+	year: number,
+	monthZeroBased: number,
+	force = false
+): Promise<CalendarResponse> {
+	const key = `${year}-${String(monthZeroBased + 1).padStart(2, '0')}`;
+	if (!force && monthCache.has(key)) {
+		return monthCache.get(key)!.response;
+	}
+
+	const startOfMonth = new Date(year, monthZeroBased, 1).toISOString().split('T')[0];
+	const endOfMonth = new Date(year, monthZeroBased + 1, 0).toISOString().split('T')[0];
+	const response = await getCalendar(startOfMonth, endOfMonth);
+	monthCache.set(key, { fetchedAt: Date.now(), response });
+	return response;
+}
+
+/**
+ * Get calendar data for a specific date (YYYY-MM-DD) using the month cache.
+ * Returns the CalendarDay for that date or null if not found.
+ * If force=true, re-fetches the month from the server to ensure freshness.
+ */
+export async function getCalendarForDate(
+	dateStr: string,
+	force = false
+): Promise<CalendarDay | null> {
+	try {
+		const d = new Date(dateStr);
+		const year = d.getFullYear();
+		const month = d.getMonth();
+		const monthResp = await getCalendarMonthCached(year, month, force);
+		const day = (monthResp.calendar || []).find((c: CalendarDay) => c.date === dateStr);
+		return day ?? null;
+	} catch (e) {
+		console.error('Error getCalendarForDate:', e);
+		return null;
+	}
+}
+
 // ===================== PRIMETIME MANAGEMENT (ADMIN) =====================
 // Para sa admin na mag-manage ng primetime settings - yung special hours na need ng approval
 

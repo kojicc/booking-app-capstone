@@ -5,6 +5,7 @@
     import { Label } from "$lib/components/ui/label/index.js";
     import { goto } from "$app/navigation";
     import { register as apiRegister } from "$lib/api/index.js";
+    import { toast } from 'svelte-sonner';
 
         let name: string = "";
         let email: string = "";
@@ -21,23 +22,37 @@
         }
         loading = true;
         try {
-            try {
-                    await apiRegister({email, password});
-                    //   auth tokens  (localStorage/cookies)
+            await apiRegister({ email, password });
+            toast.success('Account created — please sign in');
+            goto('/login-01');
+        } catch (err: any) {
+            const msg = (err && err.message) ? String(err.message) : '';
+                let display = 'Registration failed. Please try again.';
+                try {
+                    if (err && typeof err === 'object') {
+                        if (err.body) {
+                            try {
+                                const parsed = JSON.parse(err.body);
+                                if (parsed.detail) display = String(parsed.detail);
+                                else if (typeof parsed === 'object') {
+                                    const firstKey = Object.keys(parsed)[0];
+                                    const val = (parsed as any)[firstKey];
+                                    if (Array.isArray(val)) display = String(val[0]);
+                                    else display = String(val);
+                                }
+                            } catch (e) {
+                                display = String(err.body);
+                            }
+                        } else if (err.message) {
+                            display = String(err.message);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error parsing registration error:', e);
+                    console.log('Original error:', err);
+                }
 
-            } catch (err) {
-                // If API isn't configured, fallback to mocked login
-                await new Promise((resolve) => setTimeout(resolve, 1200));
-            }
-                // mock user for now (change role to 'admin' to test admin view)
-                // will be replaced by real data from the backend once available.
-                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-ignore
-                import('$lib/stores/user').then(mod => {
-                    mod.setUser({ name: 'Dev User', email, role: 'admin' });
-                });
-
-                goto("/dashboard");
+                toast.error(display);
         } finally {
             loading = false;
         }
@@ -88,7 +103,7 @@
             </Button> -->
             <div class="mt-4 text-center text-sm">
                Have an account?
-                <a href="/login-01" class="underline"> Sign in </a>
+                <a href="/login-01" class="underline" onclick={(e) => { e.preventDefault(); goto('/login-01'); }}> Sign in </a>
             </div>
         </form>
     </Card.Content>

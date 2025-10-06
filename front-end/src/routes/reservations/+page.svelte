@@ -94,7 +94,7 @@ async function handleReservationSuccess(bookedTime?: string|Date|number|null, pr
 	// Show toast notification
 	const message = primetime 
 		? '🎉 Primetime reservation created! Waiting for admin approval.' 
-		: '✅ Reservation created successfully!';
+		: 'Reservation created successfully!';
 	toast.success(message, {
 		duration: 5000,
 		position: 'top-center',

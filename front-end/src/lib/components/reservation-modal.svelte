@@ -8,7 +8,7 @@ import { toast } from 'svelte-sonner';
 import type {Reservation} from '$lib/api/reservation';
   import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
 import { clearOpenSignal } from '$lib/stores/reservation';
-import { ScrollArea } from "$lib/components/ui/scroll-area";
+import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 
 
 

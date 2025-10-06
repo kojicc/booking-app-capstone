@@ -31,6 +31,11 @@ from .serializers import (
 
 User = get_user_model()
 
+class HealthCheck(APIView):
+    
+    def get(self,request):
+        return Response({"status":"ok"},status=status.HTTP_200_OK)
+
 class IsAdminUser(permissions.BasePermission):
     """Custom permission for admin users"""
     def has_permission(self, request, view):

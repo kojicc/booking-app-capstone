@@ -22,9 +22,16 @@ from .views import (
     # Dashboard views
     UserDashboardView,
     AdminDashboardView,
+    
+    # Health check view
+    HealthCheck,
 )
 
 urlpatterns = [
+    # Health check endpoint
+    path('health/', HealthCheck.as_view(), name='health-check'),
+    
+    
     # ===================== RESERVATION ENDPOINTS =====================
     # GET /api/reservations/ - List user's reservations (or all for admin)
     # POST /api/reservations/ - Create new reservation

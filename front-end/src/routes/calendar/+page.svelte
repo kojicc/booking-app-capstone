@@ -95,10 +95,11 @@ function handleModalClose() {
 					</Breadcrumb.Root>
 				</div>
 			</div>
+			<!-- New Reservation Button , currently disabled because its buggy
 			<button class="bg-primary-200-var hover:bg-primary-300-var text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2 text-sm shadow transition-colors" onclick={() => showReservationModal.set(true)}>
 				<Plus class="h-4 w-4" />
 				New Reservation
-			</button>
+			</button> -->
 		</header>
 
 

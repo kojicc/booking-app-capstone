@@ -1,10 +1,14 @@
 <script lang="ts">
-import { getCalendar, type CalendarDay, type TimeSlot } from "$lib/api/reservation";
+import { getCalendar, getCalendarForDate, getCalendarMonthCached, type CalendarDay, type TimeSlot } from "$lib/api/reservation";
 import * as Popover from "$lib/components/ui/popover";
 import Calendar from "$lib/components/ui/calendar/calendar.svelte";
 import * as Select from "$lib/components/ui/select";
 import { ScrollArea } from "$lib/components/ui/scroll-area";
+import * as Alert from "$lib/components/ui/alert";
+import { Spinner } from "$lib/components/ui/spinner";
 import { Calendar as CalendarIcon } from "lucide-svelte";
+import { Check } from "lucide-svelte";
+import { Button } from "$lib/components/ui/button/index.js";
 import { DateFormatter, CalendarDate, getLocalTimeZone } from "@internationalized/date";
 import { cn } from "$lib/utils";
 
@@ -15,8 +19,13 @@ interface Props {
   startTime?: string;
   endTime?: string;
   primetimeSelected?: boolean;
+  // parent should set open when modal is shown so the component can decide whether to show cached or check latest
+  open?: boolean;
   totalHours?: number;
   totalCost?: number;
+  // expose validation state to parent so modal can disable Next button
+  isValidating?: boolean;
+  validationError?: string;
 }
 
 let { 
@@ -26,40 +35,26 @@ let {
   startTime = $bindable(""),
   endTime = $bindable(""),
   primetimeSelected = $bindable(false),
+  open = $bindable(false),
   totalHours = 0,
-  totalCost = 0
+  totalCost = 0,
+  isValidating = $bindable(false),
+  validationError = $bindable("")
 }: Props = $props();
 
 // Local select value for the UI Select (it expects an array of strings)
-// (Using Select in single mode bound directly to `space`)
-
-// Time slots and availability
-let selectedTimes = $state<string[]>([]);
-let availableSlots = $state<TimeSlot[]>([]);
-let calendarData = $state<CalendarDay[]>([]);
-let customTimeError = $state<string>('');
-// Manual input debounce helpers
-let manualStartInput = $state('');
-let manualEndInput = $state('');
-let debounceTimer: number | null = null;
-
-// Date restrictions
-// Use local date (not toISOString which uses UTC) to avoid timezone drift where
-// minDate could be the previous day in some timezones.
+// Date restrictions and calendar state
 const _localToday = new Date();
 const _pad = (n: number) => String(n).padStart(2, '0');
 let minDate = $state(`${_localToday.getFullYear()}-${_pad(_localToday.getMonth() + 1)}-${_pad(_localToday.getDate())}`);
 
 // shadcn calendar state
 const df = new DateFormatter("en-US", { dateStyle: "long" });
-// Initialize calendar to today's date so the picker opens on current month
 const _today = new Date();
 let value = $state<CalendarDate | undefined>(new CalendarDate(_today.getFullYear(), _today.getMonth() + 1, _today.getDate()));
 let contentRef = $state<HTMLElement | null>(null);
-// control popover open state to avoid duplicate renderings
 let popoverOpen = $state(false);
 
-// convert selected DateValue to ISO date string used by API and bindings
 $effect(() => {
   if (value) {
     // value.toString() returns ISO date yyyy-mm-dd
@@ -67,8 +62,6 @@ $effect(() => {
   }
 });
 
-// If the `date` string changes (for example from parent props or saved form state),
-// make sure the CalendarDate `value` reflects it so the picker opens to correct month.
 $effect(() => {
   if (date) {
     try {
@@ -81,17 +74,14 @@ $effect(() => {
         }
       }
     } catch (e) {
-      // ignore invalid date formats
     }
   }
 });
 
-// Prevent selecting past dates by coercing value to minDate when necessary
 $effect(() => {
   if (value) {
     const dateStr = value.toString();
     if (minDate && dateStr < minDate) {
-      // reset to minDate
       const parts = minDate.split('-').map(Number);
       value = new CalendarDate(parts[0], parts[1], parts[2]);
       date = minDate;
@@ -99,33 +89,148 @@ $effect(() => {
   }
 });
 
+// Time slots and availability
+// State variables for time selection and server checks
+let selectedTimes = $state<string[]>([]);
+let availableSlots = $state<TimeSlot[]>([]);
+let calendarData = $state<CalendarDay[]>([]);
+let customTimeError = $state<string>('');
+let isCheckingConflict = $state(false);
+let serverReservedSlots = $state<any[] | null>(null);
+let changesDetected = $state(false);
+let checkingServerChanges = $state(false);
+let validateTimer: any = null;
+let validationSuccess = $state(false);
+// Track what changed for user context
+let changedSlots = $state<{added: any[], removed: any[]}>({added: [], removed: []});
+// Track conflicting slots for display
+let conflictingSlots = $state<any[]>([]);
+
+// Sync internal state to bindable props for parent
 $effect(() => {
-  // Keep manual inputs in sync when programmatic changes occur
-  if (startTime !== manualStartInput) manualStartInput = startTime || '';
-  if (endTime !== manualEndInput) manualEndInput = endTime || '';
+  isValidating = isCheckingConflict;
+  validationError = customTimeError;
 });
 
-// Real backend API functions
-async function fetchCalendarData(selectedDate: string) {
-  try {
-    const startDate = selectedDate;
-    // Fetch a month of data to show availability in calendar
-    const endDate = new Date(selectedDate);
-    endDate.setDate(endDate.getDate() + 30);
-    
-    const response = await getCalendar(startDate, endDate.toISOString().split('T')[0]);
-    return response.calendar;
-  } catch (error) {
-    console.error('Error fetching calendar data:', error);
-    return [];
+// Validate against cached data when times change
+$effect(() => {
+  // track changes to startTime/endTime and availableSlots
+  const _start = startTime;
+  const _end = endTime;
+  const _slots = availableSlots;
+  
+  if (_start && _end && _slots.length > 0) {
+    validateTimesAgainstCache();
+  } else {
+    // No times to validate or no slots loaded yet; clear state
+    customTimeError = '';
+    validationSuccess = false;
+    isCheckingConflict = false;
   }
+});
+
+// Validate times against cached slots
+function validateTimesAgainstCache() {
+  // clear previous error
+  customTimeError = '';
+  validationSuccess = false;
+
+  // Parse times
+  const normalizeToHHMM = (t: string) => (t ? String(t).split(':').slice(0,2).join(':') : '');
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
+  const startMinutes = startHour * 60 + startMin;
+  const endMinutes = endHour * 60 + endMin;
+
+  // Validate time range
+  if (startMinutes >= endMinutes) {
+    customTimeError = 'End time must be after start time';
+    return;
+  }
+
+  // Enforce minimum 30 minutes
+  if (endMinutes - startMinutes < 30) {
+    customTimeError = 'Selected time range must be at least 30 minutes';
+    return;
+  }
+
+  // Determine per-day business hours (fall back to 07:00-19:00)
+  const dayData = calendarData.find(d => d.date === date);
+  const businessStart = dayData?.business_hours?.start_time ? normalizeToHHMM(dayData.business_hours.start_time) : '07:00';
+  const businessEnd = dayData?.business_hours?.end_time ? normalizeToHHMM(dayData.business_hours.end_time) : '19:00';
+  const [bsH, bsM] = businessStart.split(':').map(Number);
+  const [beH, beM] = businessEnd.split(':').map(Number);
+  const businessStartMinutes = bsH * 60 + bsM;
+  const businessEndMinutes = beH * 60 + beM;
+
+  if (startMinutes < businessStartMinutes || endMinutes > businessEndMinutes) {
+    customTimeError = `Time must be between ${businessStart} and ${businessEnd}`;
+    return;
+  }
+
+  // Build list of reserved slots to check against: prefer server-provided reserved for freshness
+  const localReserved = dayData?.reserved_slots || [];
+  const reservedToCheck = serverReservedSlots && serverReservedSlots.length > 0 ? serverReservedSlots : localReserved;
+
+  // Find conflicting slots - exclude PENDING status (those don't block booking)
+  const conflicts = reservedToCheck.filter((r: any) => {
+    // Skip PENDING reservations - they don't block other bookings
+    if (r.status === 'PENDING') return false;
+    
+    const rStart = normalizeToHHMM(r.start_time);
+    const rEnd = normalizeToHHMM(r.end_time);
+    const [rsH, rsM] = rStart.split(':').map(Number);
+    const [reH, reM] = rEnd.split(':').map(Number);
+    const rStartMinutes = rsH * 60 + rsM;
+    const rEndMinutes = reH * 60 + reM;
+    return (startMinutes < rEndMinutes && endMinutes > rStartMinutes);
+  });
+
+  if (conflicts.length > 0) {
+    conflictingSlots = conflicts;
+    customTimeError = 'Selected time conflicts with an existing reservation';
+    return;
+  } else {
+    conflictingSlots = [];
+  }
+
+  // Check if it's during primetime hours
+  // Mark primetime if the selected range overlaps the day's primetime hours
+  if (dayData?.primetime_hours?.start_time && dayData?.primetime_hours?.end_time) {
+    const pStart = normalizeToHHMM(dayData.primetime_hours.start_time);
+    const pEnd = normalizeToHHMM(dayData.primetime_hours.end_time);
+    const [pSH, pSM] = pStart.split(':').map(Number);
+    const [pEH, pEM] = pEnd.split(':').map(Number);
+    const pStartMinutes = pSH * 60 + pSM;
+    const pEndMinutes = pEH * 60 + pEM;
+    primetimeSelected = (startMinutes < pEndMinutes && endMinutes > pStartMinutes);
+  } else {
+    primetimeSelected = false;
+  }
+
+  // Update selected times if valid
+  const currentRange = `${startTime} - ${endTime}`;
+  const matchingSlot = availableSlots.find(slot => 
+    `${slot.start_time} - ${slot.end_time}` === currentRange
+  );
+
+  if (matchingSlot) {
+    if (!(selectedTimes.length === 1 && selectedTimes[0] === currentRange)) {
+      selectedTimes = [currentRange];
+    }
+  } else {
+    // Custom time range (not a predefined slot)
+    if (selectedTimes.length !== 0) selectedTimes = [];
+  }
+
+  // No conflicts, mark as valid
+  validationSuccess = true;
 }
 
-async function getAvailableTimeSlots(selectedDate: string): Promise<TimeSlot[]> {
-  const dayData = calendarData.find(day => day.date === selectedDate);
-  if (!dayData) return [];
-  
-  return dayData.available_slots || [];
+// Helper to get month key (YYYY-MM) from a date string
+function getMonthKey(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 // Check if a date has any available slots
@@ -133,24 +238,11 @@ function isDateAvailable(dateValue: CalendarDate): boolean {
   if (!dateValue) return false;
   const dateStr = dateValue.toString();
 
-  // Disallow dates earlier than minDate (past dates)
   if (minDate && dateStr < minDate) return false;
 
   const dayData = calendarData.find(day => day.date === dateStr);
-  // If date is not in calendarData yet, assume it's available (will be fetched when selected)
-  // Only mark as unavailable if we have the data AND all slots are unavailable
   if (!dayData) return true;
   return dayData.available_slots.some(slot => slot.available);
-}
-
-// Reactive data loading and time slot management
-let loadingSlots = $state(false);
-let currentCachedMonth = $state<string | null>(null); // Track which month is currently cached (format: YYYY-MM)
-
-// Helper to get month key from a date
-function getMonthKey(dateStr: string): string {
-  const d = new Date(dateStr);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 // Helper to fetch month data
@@ -159,8 +251,18 @@ async function fetchMonthData(year: number, month: number) {
   const endOfMonth = new Date(year, month + 1, 0).toISOString().split('T')[0];
   
   try {
-    const response = await getCalendar(startOfMonth, endOfMonth);
-    calendarData = response.calendar;
+    // use cached month fetch helper so we don't re-request the same month unnecessarily
+    const response = await getCalendarMonthCached(year, month);
+    const normalizeTime = (t: string) => (typeof t === 'string' ? t.split(':').slice(0,2).join(':') : t);
+
+    calendarData = (response.calendar || []).map((day: any) => ({
+      ...day,
+      available_slots: (day.available_slots || []).map((slot: any) => ({
+        ...slot,
+        start_time: normalizeTime(slot.start_time),
+        end_time: normalizeTime(slot.end_time),
+      })),
+    }));
     currentCachedMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
   } catch (error) {
     console.error('Failed to fetch calendar:', error);
@@ -168,7 +270,16 @@ async function fetchMonthData(year: number, month: number) {
   }
 }
 
-// Prefetch current month on component mount
+// State for loading and cached month
+let loadingSlots = $state(false);
+let currentCachedMonth = $state<string | null>(null);
+
+async function getAvailableTimeSlots(selectedDate: string): Promise<TimeSlot[]> {
+  const dayData = calendarData.find(day => day.date === selectedDate);
+  if (!dayData) return [];
+  return dayData.available_slots || [];
+}
+
 $effect(() => {
   async function prefetchCurrentMonth() {
     loadingSlots = true;
@@ -185,7 +296,6 @@ $effect(() => {
     if (date) {
       const monthKey = getMonthKey(date);
       
-      // If the selected date is in a different month than cached, fetch that month
       if (monthKey !== currentCachedMonth) {
         loadingSlots = true;
         const selectedDate = new Date(date);
@@ -193,8 +303,21 @@ $effect(() => {
         loadingSlots = false;
       }
       
-      // Get slots from cached data
       availableSlots = await getAvailableTimeSlots(date);
+      // also fetch authoritative reserved_slots for this date to detect changes
+      checkingServerChanges = true;
+      try {
+        const day = await getCalendarForDate(date);
+        serverReservedSlots = day?.reserved_slots || [];
+        // compare with local available/reserved slots to detect changes
+        const localReserved = (calendarData.find(c => c.date === date)?.reserved_slots || []).map(r => `${r.start_time}-${r.end_time}-${r.status}`);
+        const serverList = (serverReservedSlots || []).map((r: any) => `${r.start_time}-${r.end_time}-${r.status}`);
+        changesDetected = JSON.stringify(localReserved) !== JSON.stringify(serverList);
+      } catch (e) {
+        console.error('Error checking server date:', e);
+      } finally {
+        checkingServerChanges = false;
+      }
     } else {
       availableSlots = [];
     }
@@ -202,12 +325,28 @@ $effect(() => {
   loadCalendarData();
 });
 
+// Reload month data from server (force) and refresh local state
+async function reloadMonthFromServer() {
+  if (!date) return;
+  const d = new Date(date);
+  loadingSlots = true;
+  try {
+    await getCalendarMonthCached(d.getFullYear(), d.getMonth(), true);
+    await fetchMonthData(d.getFullYear(), d.getMonth());
+    availableSlots = await getAvailableTimeSlots(date);
+    changesDetected = false;
+  } finally {
+    loadingSlots = false;
+  }
+}
+
 
 // Time slot selection functions
 function toggleTimeSlot(slot: TimeSlot) {
-  // Normalize times to HH:MM (drop seconds) so display and comparisons match
-  const fmt = (t: string) => t.split(':').slice(0,2).join(':');
-  const slotKey = `${fmt(slot.start_time)} - ${fmt(slot.end_time)}`;
+  const fmt = (t: string) => (t ? String(t).split(':').slice(0,2).join(':') : '');
+  const startNorm = fmt(slot.start_time);
+  const endNorm = fmt(slot.end_time);
+  const slotKey = `${startNorm} - ${endNorm}`;
   
   if (selectedTimes.includes(slotKey)) {
     selectedTimes = selectedTimes.filter(t => t !== slotKey);
@@ -219,90 +358,209 @@ function toggleTimeSlot(slot: TimeSlot) {
     }
   } else {
     selectedTimes = [slotKey]; // single select
-    
-    // Auto-populate start and end times based on selected slot
-    startTime = slot.start_time;
-    endTime = slot.end_time;
+
+    startTime = startNorm;
+    endTime = endNorm;
     primetimeSelected = slot.type === 'PRIMETIME';
   }
 }
 
-// Clear selections when date changes
+// Track previous date to only clear when date actually changes
+let previousDate = $state<string>("");
+
+// Clear selections only when date changes to a different date
 $effect(() => {
-  // referencing `date` ensures this effect runs only when the selected date changes
   const _d = date;
-  selectedTimes = [];
-  startTime = "";
-  endTime = "";
-  primetimeSelected = false;
+  if (previousDate && _d && previousDate !== _d) {
+    // Date changed to a different date - clear selections
+    selectedTimes = [];
+    startTime = "";
+    endTime = "";
+    primetimeSelected = false;
+  }
+  previousDate = _d;
 });
 
 // Handle manual time input matching
-$effect(() => {
-  if (startTime && endTime && availableSlots.length > 0) {
-    customTimeError = '';
-    
-    // Parse times
-    const [startHour, startMin] = startTime.split(':').map(Number);
-    const [endHour, endMin] = endTime.split(':').map(Number);
-    const startMinutes = startHour * 60 + startMin;
-    const endMinutes = endHour * 60 + endMin;
-    
-    // Validate time range
-    if (startMinutes >= endMinutes) {
-      customTimeError = 'End time must be after start time';
-      return;
-    }
-    
-    // Check if custom time is within business hours (7 AM - 7 PM)
-    if (startHour < 7 || endHour > 19 || (endHour === 19 && endMin > 0)) {
-      customTimeError = 'Time must be between 7:00 AM and 7:00 PM';
-      return;
-    }
-    
-    // Check if time overlaps with any unavailable slots
-    const hasConflict = availableSlots.some(slot => {
-      if (!slot.available) {
-        const [slotStartHour, slotStartMin] = slot.start_time.split(':').map(Number);
-        const [slotEndHour, slotEndMin] = slot.end_time.split(':').map(Number);
-        const slotStartMinutes = slotStartHour * 60 + slotStartMin;
-        const slotEndMinutes = slotEndHour * 60 + slotEndMin;
-        
-        // Check if custom range overlaps with unavailable slot
-        return (startMinutes < slotEndMinutes && endMinutes > slotStartMinutes);
-      }
-      return false;
-    });
-    
-    if (hasConflict) {
-      customTimeError = 'Selected time conflicts with an existing reservation';
-      return;
-    }
-    
-    // Check if it's during primetime hours
-    const primetimeSlot = availableSlots.find(slot => 
-      slot.type === 'PRIMETIME' && 
-      slot.start_time <= startTime && 
-      slot.end_time >= endTime
-    );
-    primetimeSelected = !!primetimeSlot;
-    
-    // Update selected times if valid
-    const currentRange = `${startTime} - ${endTime}`;
-    const matchingSlot = availableSlots.find(slot => 
-      `${slot.start_time} - ${slot.end_time}` === currentRange
-    );
-    
-      if (matchingSlot) {
-        if (!(selectedTimes.length === 1 && selectedTimes[0] === currentRange)) {
-          selectedTimes = [currentRange];
-        }
-      } else {
-        // Custom time range (not a predefined slot)
-        if (selectedTimes.length !== 0) selectedTimes = [];
-      }
+// Note: the primary validation flow is handled by validateTimesLocalThenServer()
+
+// Validate against cache for fast feedback (called by parent modal)
+async function validateManualTimesWithServer(): Promise<boolean> {
+  if (!date || !startTime || !endTime) return false;
+
+  const normalizeToHHMM = (t: string) => (t ? String(t).split(':').slice(0,2).join(':') : '');
+
+  // Parse times
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  const s = sh * 60 + sm;
+  const e = eh * 60 + em;
+
+  // Basic range checks
+  if (s >= e) {
+    customTimeError = 'End time must be after start time';
+    validationSuccess = false;
+    return true;
   }
-});
+
+  if (e - s < 30) {
+    customTimeError = 'Selected time range must be at least 30 minutes';
+    validationSuccess = false;
+    return true;
+  }
+
+  // Per-day business hours
+  const dayData = calendarData.find(d => d.date === date);
+  const businessStart = dayData?.business_hours?.start_time ? normalizeToHHMM(dayData.business_hours.start_time) : '07:00';
+  const businessEnd = dayData?.business_hours?.end_time ? normalizeToHHMM(dayData.business_hours.end_time) : '19:00';
+  const [bsH, bsM] = businessStart.split(':').map(Number);
+  const [beH, beM] = businessEnd.split(':').map(Number);
+  const businessStartMinutes = bsH * 60 + bsM;
+  const businessEndMinutes = beH * 60 + beM;
+
+  if (s < businessStartMinutes || e > businessEndMinutes) {
+    customTimeError = `Time must be between ${businessStart} and ${businessEnd}`;
+    validationSuccess = false;
+    return true;
+  }
+
+  // Use serverReservedSlots if available, otherwise dayData reserved slots
+  const localReserved = dayData?.reserved_slots || [];
+  const reservedToCheck = serverReservedSlots && serverReservedSlots.length > 0 ? serverReservedSlots : localReserved;
+
+  // Find conflicting slots - exclude PENDING status (those don't block booking)
+  const conflicts = reservedToCheck.filter((r: any) => {
+    // Skip PENDING reservations - they don't block other bookings
+    if (r.status === 'PENDING') return false;
+    
+    const rStart = normalizeToHHMM(r.start_time);
+    const rEnd = normalizeToHHMM(r.end_time);
+    const [rsH, rsM] = rStart.split(':').map(Number);
+    const [reH, reM] = rEnd.split(':').map(Number);
+    const rStartMinutes = rsH * 60 + rsM;
+    const rEndMinutes = reH * 60 + reM;
+    return (s < rEndMinutes && e > rStartMinutes);
+  });
+
+  if (conflicts.length > 0) {
+    conflictingSlots = conflicts;
+    customTimeError = 'Selected time conflicts with an existing reservation';
+    validationSuccess = false;
+    return true; // true = conflict found
+  } else {
+    conflictingSlots = [];
+    customTimeError = '';
+    validationSuccess = true;
+    return false; // false = no conflict
+  }
+}
+
+// Expose a validate method so parent can call it (e.g. modal before advancing steps)
+export function validate(): Promise<boolean> {
+  return validateManualTimesWithServer();
+}
+
+// Expose a reset validation method so parent can call it when user navigates back
+// Preserves user input (startTime/endTime) but clears validation state
+export function resetValidation() {
+  customTimeError = '';
+  validationSuccess = false; // Clear success state too
+  isCheckingConflict = false;
+  if (validateTimer) clearTimeout(validateTimer);
+  // Don't clear startTime/endTime - preserve user input
+}
+
+// Expose a clearAndReload method for when booking creation fails
+// Clears all inputs and forces fresh data reload
+export async function clearAndReload() {
+  // Clear all form inputs
+  bookingName = '';
+  startTime = '';
+  endTime = '';
+  space = 'Workspace Main';
+  selectedTimes = [];
+  primetimeSelected = false;
+  
+  // Clear validation state
+  customTimeError = '';
+  validationSuccess = false;
+  isCheckingConflict = false;
+  changesDetected = false;
+  if (validateTimer) clearTimeout(validateTimer);
+  
+  // Reset calendar to today
+  const today = new Date();
+  value = new CalendarDate(today.getFullYear(), today.getMonth() + 1, today.getDate());
+  date = value.toString();
+  
+  // Force reload current month data from server
+  loadingSlots = true;
+  try {
+    await getCalendarMonthCached(today.getFullYear(), today.getMonth(), true);
+    await fetchMonthData(today.getFullYear(), today.getMonth());
+    availableSlots = await getAvailableTimeSlots(date);
+  } finally {
+    loadingSlots = false;
+  }
+}
+
+// Open/reopen logic: when the component receives `open=true`, show cached data immediately
+// and then call the server to check for latest changes; only show the refresh alert
+// if the server returns a different reserved_slots set than our cached month response.
+import { onMount } from 'svelte';
+let hasLoadedOnce = false;
+
+async function handleOpenChange(isOpen: boolean) {
+  if (!isOpen) return;
+  // When opening, if we have not loaded this month yet, fetch month (this will populate cache)
+  if (!hasLoadedOnce) {
+    const d = date ? new Date(date) : new Date();
+    await fetchMonthData(d.getFullYear(), d.getMonth());
+    availableSlots = await getAvailableTimeSlots(date || d.toISOString().split('T')[0]);
+    hasLoadedOnce = true;
+    // do not show refresh UI on first load
+    changesDetected = false;
+    return;
+  }
+
+  // For subsequent openings: show cached data but also check latest server state
+  checkingServerChanges = true;
+  try {
+    const d = date ? new Date(date) : new Date();
+    const serverDay = await getCalendarForDate((date || d.toISOString().split('T')[0]), true);
+    const serverSlots = serverDay?.reserved_slots || [];
+    const localDay = calendarData.find(c => c.date === (date || d.toISOString().split('T')[0]));
+    const localSlots = localDay?.reserved_slots || [];
+    
+    // Build string representations for comparison
+    const serverList = serverSlots.map((r: any) => `${r.start_time}-${r.end_time}-${r.status}`);
+    const localList = localSlots.map((r: any) => `${r.start_time}-${r.end_time}-${r.status}`);
+    
+    if (JSON.stringify(serverList) !== JSON.stringify(localList)) {
+      changesDetected = true;
+      serverReservedSlots = serverSlots;
+      
+      // Compute diff: which slots were added or removed
+      const added = serverSlots.filter((s: any) => 
+        !localSlots.some((l: any) => l.start_time === s.start_time && l.end_time === s.end_time)
+      );
+      const removed = localSlots.filter((l: any) => 
+        !serverSlots.some((s: any) => s.start_time === l.start_time && s.end_time === l.end_time)
+      );
+      changedSlots = { added, removed };
+    } else {
+      changesDetected = false;
+      changedSlots = { added: [], removed: [] };
+    }
+  } catch (e) {
+    console.error('Error checking latest on open:', e);
+  } finally {
+    checkingServerChanges = false;
+  }
+}
+
+// react to open changes
+$effect(() => { void handleOpenChange(open); });
 
 // Computed values for display
 let hasDate = $state(false);
@@ -313,26 +571,6 @@ $effect(() => {
   hasAvailableSlots = availableSlots.length > 0;
 });
 
-// Debounce manual input updates: when user types, wait 250ms before applying
-function onManualStartInput(v: string) {
-  manualStartInput = v;
-  if (debounceTimer) window.clearTimeout(debounceTimer);
-  debounceTimer = window.setTimeout(() => {
-    if (/^\d{2}:\d{2}$/.test(manualStartInput)) {
-      startTime = manualStartInput;
-    }
-  }, 250);
-}
-
-function onManualEndInput(v: string) {
-  manualEndInput = v;
-  if (debounceTimer) window.clearTimeout(debounceTimer);
-  debounceTimer = window.setTimeout(() => {
-    if (/^\d{2}:\d{2}$/.test(manualEndInput)) {
-      endTime = manualEndInput;
-    }
-  }, 250);
-}
 
 
 </script>
@@ -344,7 +582,7 @@ function onManualEndInput(v: string) {
       <input 
         id="booking-name" 
         class="w-full rounded-md border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-primary-200-var focus:border-primary-200-var transition" 
-        placeholder="Build Day" 
+        placeholder="Booking name" 
         bind:value={bookingName} 
       />
     </div>
@@ -375,7 +613,7 @@ function onManualEndInput(v: string) {
               type="single"
               bind:value
               class="rounded-lg"
-              isDateUnavailable={(date) => !isDateAvailable(date as CalendarDate)}
+                isDateUnavailable={(date) => !isDateAvailable(date as CalendarDate)}
             />
           {/if}
         </Popover.Content>
@@ -403,7 +641,49 @@ function onManualEndInput(v: string) {
   </div>
 
   <div class="space-y-3">
-    <div class="block text-sm font-medium">Available Time Ranges</div>
+    <div class="flex items-center justify-between">
+      <div class="block text-sm font-medium">Available Time Ranges</div>
+      <div class="flex items-center gap-2">
+        {#if checkingServerChanges}
+          <span class="inline-flex items-center gap-2 text-xs text-gray-600">
+            <Spinner class="h-3 w-3 text-gray-600" />
+            <span>Checking for changes</span>
+          </span>
+        {/if}
+        {#if changesDetected}
+          <span class="inline-flex items-center gap-2 text-xs text-red-600 font-semibold">
+            <span>Changes detected</span>
+            <Button variant="outline" size="sm" onclick={reloadMonthFromServer}>Reload</Button>
+          </span>
+        {/if}
+      </div>
+    </div>
+    
+    {#if changesDetected && (changedSlots.added.length > 0 || changedSlots.removed.length > 0)}
+      <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs">
+        <div class="font-semibold text-amber-800 mb-2">Reservation changes detected:</div>
+        {#if changedSlots.added.length > 0}
+          <div class="mb-2">
+            <span class="font-medium text-emerald-700">New reservations:</span>
+            <ul class="ml-4 mt-1 space-y-1">
+              {#each changedSlots.added as slot}
+                <li class="text-gray-700">{slot.start_time} - {slot.end_time}</li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+        {#if changedSlots.removed.length > 0}
+          <div>
+            <span class="font-medium text-red-700">Cancelled reservations:</span>
+            <ul class="ml-4 mt-1 space-y-1">
+              {#each changedSlots.removed as slot}
+                <li class="text-gray-700">{slot.start_time} - {slot.end_time}</li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+      </div>
+    {/if}
     {#if loadingSlots}
       <div class="text-sm text-gray-500 p-4 bg-gray-50 rounded-lg text-center">
         Loading available slots...
@@ -437,7 +717,7 @@ function onManualEndInput(v: string) {
               ? (isSelected ? 'bg-emerald-50 border-emerald-300 shadow-sm' : 'bg-white border-gray-200 hover:border-emerald-300 hover:shadow-sm') 
               : 'bg-gray-50 border-gray-200 opacity-70')
           }>
-            <div class="flex items-center justify-between gap-1 sm:gap-2">
+            <div class="flex items-center justify-between gap-2">
               <span class={
                 'text-xs sm:text-sm font-semibold whitespace-nowrap ' +
                 (isAvailable ? 'text-gray-900' : 'text-gray-500')
@@ -445,7 +725,7 @@ function onManualEndInput(v: string) {
                 {slotKey}
               </span>
               {#if isPrimetime}
-                <span class="px-1 sm:px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-semibold bg-yellow-100 text-yellow-800 whitespace-nowrap flex-shrink-0">
+                <span class="px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-semibold bg-yellow-100 text-yellow-800 whitespace-nowrap flex-shrink-0">
                   PT
                 </span>
               {/if}
@@ -479,8 +759,7 @@ function onManualEndInput(v: string) {
         id="start-time" 
         type="time" 
         class="w-full rounded-md border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-primary-200-var focus:border-primary-200-var transition" 
-        bind:value={manualStartInput}
-        oninput={(e) => onManualStartInput(((e.target as HTMLInputElement)?.value) ?? '')}
+        bind:value={startTime}
         min="07:00"
         max="19:00"
         disabled={loadingSlots}
@@ -495,8 +774,7 @@ function onManualEndInput(v: string) {
         id="end-time" 
         type="time" 
         class="w-full rounded-md border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-primary-200-var focus:border-primary-200-var transition" 
-        bind:value={manualEndInput}
-        oninput={(e) => onManualEndInput(((e.target as HTMLInputElement)?.value) ?? '')}
+        bind:value={endTime}
         min="07:00"
         max="19:00"
         disabled={loadingSlots}
@@ -507,14 +785,68 @@ function onManualEndInput(v: string) {
     </div>
   </div>
 
-  {#if customTimeError}
-    <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
-      {customTimeError}
-    </div>
+  {#if isCheckingConflict}
+    <Alert.Root class="border-blue-200 bg-blue-50">
+      <Alert.Title>
+        <div class="flex items-center gap-2">
+          <Spinner class="h-4 w-4 text-blue-600" />
+          <span>Checking availability…</span>
+        </div>
+      </Alert.Title>
+      <Alert.Description>
+        Validating your selected time range. You can proceed to the next step while this completes.
+      </Alert.Description>
+    </Alert.Root>
+  {:else if customTimeError}
+    <Alert.Root variant="destructive" class="border-red-200 bg-red-50">
+      <Alert.Title>Unable to book selected time</Alert.Title>
+      <Alert.Description>
+        <div class="space-y-2">
+          <p>{customTimeError}</p>
+          {#if conflictingSlots.length > 0}
+            <div class="mt-3 pt-3 border-t border-red-300">
+              <p class="font-semibold mb-2">Conflicting reservations:</p>
+              <ul class="space-y-1">
+                {#each conflictingSlots as slot}
+                  <li class="text-sm">
+                    <span class="font-medium">{slot.booking_name || 'Reservation'}</span>
+                    {' • '}
+                    <span>{slot.start_time?.split(':').slice(0,2).join(':')} - {slot.end_time?.split(':').slice(0,2).join(':')}</span>
+                    {#if slot.status}
+                      {' • '}
+                      <span class="capitalize">{slot.status_display || slot.status.toLowerCase()}</span>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
+            </div>
+          {/if}
+        </div>
+      </Alert.Description>
+    </Alert.Root>
+  {:else if validationSuccess}
+    <Alert.Root class="border-emerald-200 bg-emerald-50">
+      <Alert.Title>
+        <div class="flex items-center gap-2">
+          <Check class="h-4 w-4 text-emerald-600" />
+          <span>Time range valid</span>
+        </div>
+      </Alert.Title>
+      <Alert.Description>
+        No conflicts detected for the selected time.
+        {#if primetimeSelected}
+          <div class="mt-2 inline-flex items-center gap-2 px-2 py-1 rounded bg-yellow-100 border border-yellow-300 text-yellow-900 font-semibold text-xs">
+            <span class="px-1.5 py-0.5 rounded-full bg-yellow-200">PT</span>
+            <span>This is a Primetime booking and will require admin approval</span>
+          </div>
+        {/if}
+      </Alert.Description>
+    </Alert.Root>
   {:else if startTime && endTime && !selectedTimes.length}
-    <div class="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg p-3 text-sm">
-      ℹ️ Custom time range selected. Make sure it doesn't conflict with existing reservations.
-    </div>
+    <Alert.Root class="border-blue-200 bg-blue-50">
+      <Alert.Title>Custom time range selected</Alert.Title>
+      <Alert.Description>Make sure the range doesn't conflict with existing reservations.</Alert.Description>
+    </Alert.Root>
   {/if}
 
   <div class="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg p-4">

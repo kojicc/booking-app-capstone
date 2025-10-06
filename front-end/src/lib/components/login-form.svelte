@@ -72,9 +72,6 @@
             <div class="grid gap-2">
                 <div class="flex items-center">
                     <Label for="password">Password</Label>
-                    <button type="button" class="ml-auto inline-block text-sm underline" onclick={(e) => { e.preventDefault(); /* TODO: show reset password */ }}>
-                        Forgot your password?
-                    </button>
                 </div>
                 <Input id="password" type="password" required bind:value={password} />
                     {#if passwordError}

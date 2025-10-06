@@ -120,12 +120,12 @@ function handleConfirm() {
         notes: ''
       });
 
-      // success path - show toast instead of modal
+      /* success path - dont show toast, parent already does so!
       const isPrimetimeCheck = isPrimetime || primetimeSelected;
       const message = isPrimetimeCheck 
         ? 'Primetime reservation created! Waiting for admin approval.' 
         : 'Reservation created successfully!';
-      toast.success(message);
+      toast.success(message);*/
       onSuccess?.(created.start_time, primetimeSelected);
       closeModal(); // Close the reservation modal after success
     } catch (err: any) {

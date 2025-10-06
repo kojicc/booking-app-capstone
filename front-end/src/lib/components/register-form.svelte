@@ -87,7 +87,7 @@
             </Button> -->
             <div class="mt-4 text-center text-sm">
                Have an account?
-                <a href="/login" class="underline" onclick={(e) => { e.preventDefault(); goto('/login'); }}> Sign in </a>
+                <a href="/login-01" class="underline"> Sign in </a>
             </div>
         </form>
     </Card.Content>

@@ -2,84 +2,92 @@
 import '@event-calendar/core/index.css';
 import {Calendar, TimeGrid} from '@event-calendar/core';
 import { user } from '$lib/stores/user';
-import { onMount } from 'svelte';
 import { getCalendar } from '$lib/api/index';
 import { invalidateCalendarCache } from '$lib/stores/reservation';
 
 let ec = $state<any>();
-let loading = $state(true);
+let loading = $state(false);
 let error = $state('');
+
 
 let options = $state({
     view: 'timeGridWeek',
     slotMinTime: '07:00:00',
     slotMaxTime: '19:00:00',
-    events: [
-        // list of events to be loaded from api
-    ],
+    eventSources: [{
+      events: fetchEvents
+    }],
     editable: false,          // Cannot drag events
     selectable: false,        // Cannot select time slots
     dayMaxEvents: true,       // Show "more" link if too many events
     nowIndicator: true,       // Shows current time line
-});
+    loading: handleLoading
+}); 
+/*
+let options = {
+    view: 'timeGridWeek',
+    slotMinTime: '07:00:00',
+    slotMaxTime: '19:00:00',
+    eventSources: [{
+      events: fetchEvents
+    }],
+    editable: false,          // Cannot drag events
+    selectable: false,        // Cannot select time slots
+    dayMaxEvents: true,       // Show "more" link if too many events
+    nowIndicator: true,       // Shows current time line
+    loading: handleLoading
+}; */
+
 
 
 /* eventClick: handleEventClick
    optional in future: Handle clicks on events to show details
 */
-onMount(async () => {
-    await loadCalendarData();
-  });
 
 // Reload calendar data when cache is invalidated (e.g., after creating/updating a reservation)
-$effect(() => {
-	if ($invalidateCalendarCache) {
-		loadCalendarData();
+/*$effect(() => {
+	if ($invalidateCalendarCache && ec) {
+    ec.refetchEvents();
 	}
-});
+});*/
+
+
+
+function handleLoading(isLoading: boolean) {
+    // this just sets the state variable to the current loading status
+    // down in the actual component display there's an if else that checks it
+    // for displaying the loading message  
+    loading = isLoading;
+  }
 
 function formatDate(date: Date): string {
     // Format date as YYYY-MM-DD for the API
     return date.toISOString().split('T')[0];
   }
 
-async function loadCalendarData(startDate?: string, endDate?: string) {
-    loading = true;
-    error = '';
-    
+async function fetchEvents(fetchInfo: any, successCallback: any, failureCallback: any) {
+    console.log('fetchEvents called:', fetchInfo);
     try {
-
-      // If dates not provided, calculate current week
-      if (!startDate || !endDate) {
-        // Get current week range
-        const today = new Date();
-        // copy date to avoid mutating today
-        const startOfWeek = new Date(today);
-        // this gets the date of the previous Sunday
-        // by subtracting the current day of the week (0-6) from the date of the month
-        startOfWeek.setDate(today.getDate() - today.getDay());
-
-        // end of week is 6 days after start of week
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
-
-        // convert to YYYY-MM-DD
-        startDate = formatDate(startOfWeek);
-        endDate = formatDate(endOfWeek);
-      }
-      const calendarData = await getCalendar(startDate, endDate);
-      
+      const calendarData = await getCalendar(formatDate(fetchInfo.start), formatDate(fetchInfo.end));
       // Transform backend data to Event Calendar format
       const events = [];
-      
+
       for (const day of calendarData.calendar) {
         // Add reserved slots as events
+        if (!day.reserved_slots || !Array.isArray(day.reserved_slots)) {
+          console.warn('Day missing reserved_slots:', day);
+          continue;
+        }
         for (const reservation of day.reserved_slots) {
           events.push({
             id: reservation.id,
+            resourceIds: [],
+            allDay: false,
             title: getReservationTitle(reservation),
-            start: `${reservation.date}T${reservation.start_time}`,
-            end: `${reservation.date}T${reservation.end_time}`,
+            //start: `${reservation.date}T${reservation.start_time}`,\
+            start: new Date(`${reservation.date}T${reservation.start_time}`),
+            // end: `${reservation.date}T${reservation.end_time}`,
+            end: new Date(`${reservation.date}T${reservation.end_time}`),
             backgroundColor: getReservationColor(reservation),
             textColor: '#ffffff',
             extendedProps: {
@@ -89,9 +97,24 @@ async function loadCalendarData(startDate?: string, endDate?: string) {
               isOwner: reservation.user === $user?.id
             }
           });
-        }
-
-        // Future feature (still buggy): display primetime hours
+        } 
+      }
+      console.log('Fetched events:', events);
+      try {
+        successCallback(events);
+      } catch (error:any) {
+        console.error('Error in successCallback:', error);
+      }
+      //successCallback(events);
+      //return events;
+    } catch (err: any) {
+      error = err.message || 'Failed to load calendar data';
+      console.error('Calendar load error:', err);
+      failureCallback(err);
+      //throw err;
+    }
+}
+       // Future feature (still buggy): display primetime hours (place this in fetchEvents)
         /*if (day.available_slots) {
           for (const slot of day.available_slots) {
             if (slot.available) {
@@ -104,16 +127,7 @@ async function loadCalendarData(startDate?: string, endDate?: string) {
             }
           } 
         } */
-      }
-
-      options.events = events;
-    } catch (err: any) {
-      error = err.message || 'Failed to load calendar data';
-      console.error('Calendar load error:', err);
-    } finally {
-      loading = false;
-    }
-  }
+     
 
 // this shows different event details for admins or for users 
 function getReservationTitle(reservation: any): string {
@@ -127,14 +141,6 @@ function getReservationTitle(reservation: any): string {
   }
   return 'Reserved';
 }
-
-//this function will be called as an event handler when the calendar view changes
-function handleViewChange(info: any) {
-    // Use the date range provided by the event
-    const startDate = formatDate(new Date(info.start));
-    const endDate = formatDate(new Date(info.end));
-    loadCalendarData(startDate, endDate);
-  }
 
   //NOTE: currently calendar api doesn't return pending or cancelled reservations
   // so technically that part is unnecessary, but if the api changes in the future, it's there!
@@ -158,5 +164,7 @@ function getReservationColor(reservation: any): string {
 {:else if error}
     <p class="text-red-500">Error: {error}</p>
 {:else}
-    <Calendar plugins={[TimeGrid]} {options} onViewDidMount={handleViewChange} bind:this={ec} />
+    <!-- why is calendar bound to itself?
+    <Calendar plugins={[TimeGrid]} {options} bind:this={ec} /> -->
+    <Calendar plugins={[TimeGrid]} {options} />
 {/if}

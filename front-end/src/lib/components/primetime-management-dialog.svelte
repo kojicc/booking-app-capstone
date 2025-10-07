@@ -214,16 +214,16 @@ export function closeDialogPublic() {
 {#if isDesktop.current}
   <!-- DESKTOP VERSION - Dialog -->
   <Dialog.Root bind:open>
-    <Dialog.Content class="sm:max-w-[700px] max-h-[90vh] flex flex-col">
-      <Dialog.Header>
+    <Dialog.Content class="sm:max-w-[700px] max-h-[90vh] flex flex-col p-0">
+      <Dialog.Header class="px-6 pt-6 pb-4">
         <Dialog.Title>Primetime Management</Dialog.Title>
         <Dialog.Description>
           Set special hours na need ng admin approval para sa reservations
         </Dialog.Description>
       </Dialog.Header>
 
-      <ScrollArea class="flex-1 -mx-6 px-6">
-        <div class="space-y-6 py-4">
+      <div class="flex-1 overflow-y-auto px-6">
+        <div class="space-y-6 pb-4">
           <!-- FORM SECTION -->
           <div class="border rounded-lg p-4 space-y-4">
             <h3 class="font-semibold text-sm">
@@ -301,18 +301,18 @@ export function closeDialogPublic() {
                 No primetime settings yet. Add one above to get started.
               </div>
             {:else}
-              <ScrollArea class="h-[400px] w-full rounded-lg border">
-                <div class="w-full">
-                <Table.Root>
-                  <Table.Header>
-                    <Table.Row>
-                      <Table.Head>Day</Table.Head>
-                      <Table.Head>Time Range</Table.Head>
-                      <Table.Head>Status</Table.Head>
-                      <Table.Head class="text-right">Actions</Table.Head>
-                    </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
+              <div class="rounded-lg border overflow-hidden">
+                <ScrollArea class="max-h-[300px] overflow-y-auto">
+                  <Table.Root>
+                    <Table.Header class="sticky top-0 bg-background z-10">
+                      <Table.Row>
+                        <Table.Head>Day</Table.Head>
+                        <Table.Head>Time Range</Table.Head>
+                        <Table.Head>Status</Table.Head>
+                        <Table.Head class="text-right">Actions</Table.Head>
+                      </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
                     {#each primeTimeSettings as setting}
                       <Table.Row>
                         <Table.Cell class="font-medium">
@@ -353,14 +353,14 @@ export function closeDialogPublic() {
                     {/each}
                   </Table.Body>
                 </Table.Root>
-                </div>
-              </ScrollArea>
+                </ScrollArea>
+              </div>
             {/if}
           </div>
         </div>
-      </ScrollArea>
+      </div>
 
-      <div class="flex justify-end mt-4">
+      <div class="flex justify-end px-6 py-4 border-t">
         <Button variant="outline" onclick={closeDialog}>Close</Button>
       </div>
     </Dialog.Content>
@@ -377,7 +377,7 @@ export function closeDialogPublic() {
         </Drawer.Description>
       </Drawer.Header>
 
-      <ScrollArea class="max-h-[70vh] px-4">
+  <ScrollArea class="max-h-[70vh] px-4">
         <div class="space-y-6 pb-4">
           <!-- FORM SECTION -->
           <div class="border rounded-lg p-3 space-y-3">
@@ -453,7 +453,8 @@ export function closeDialogPublic() {
                 No settings yet
               </div>
             {:else}
-              <div class="space-y-2">
+              <!-- Constrain mobile list height so it scrolls within the drawer when many items exist -->
+              <div class="space-y-2 max-h-[50vh] overflow-auto">
                 {#each primeTimeSettings as setting}
                   <div class="border rounded-lg p-3 space-y-2">
                     <div class="flex justify-between items-start">

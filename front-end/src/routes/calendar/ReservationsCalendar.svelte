@@ -133,7 +133,7 @@ function handleViewChange(info: any) {
     // Use the date range provided by the event
     const startDate = formatDate(new Date(info.start));
     const endDate = formatDate(new Date(info.end));
-    loadCalendarData();
+    loadCalendarData(startDate, endDate);
   }
 
   //NOTE: currently calendar api doesn't return pending or cancelled reservations

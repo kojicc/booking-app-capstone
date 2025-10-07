@@ -42,11 +42,14 @@ let refreshKey = $state(0);
 
 // Read query param 'open' to optionally open a reservation edit modal
 let openReservationId = $state<number | null>(null);
+// Read optional 'mode' param (e.g., view)
+let reservationMode = $state<string | null>(null);
 
 $effect(() => {
 	const params = $page.url.searchParams;
 	const id = params.get('open');
 	openReservationId = id ? Number(id) : null;
+	reservationMode = params.get('mode');
 });
 
 // Primetime state para sa badge
@@ -193,11 +196,11 @@ $effect(() => {
 
 					{#if $user?.role === 'admin'}
 						{#key refreshKey}
-								<AdminReservations openReservationId={openReservationId} />
+								<AdminReservations openReservationId={openReservationId} mode={reservationMode} />
 							{/key}
 					{:else}
 							{#key refreshKey}
-								<UserReservations openReservationId={openReservationId} />
+								<UserReservations openReservationId={openReservationId} mode={reservationMode} />
 							{/key}
 					{/if}
 				</div>

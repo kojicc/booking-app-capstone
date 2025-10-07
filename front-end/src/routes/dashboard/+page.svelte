@@ -483,9 +483,14 @@
 												</p>
 											{/if}
 										</div>
-										<Button variant="ghost" size="sm" href={`/reservations?open=${reservation.id}`}>
-											View
-										</Button>
+										<div class="flex flex-col sm:flex-row gap-2">
+										  <Button variant="ghost" size="sm" href={`/reservations?open=${reservation.id}&mode=view`}>
+											  View
+										  </Button>
+										  <Button variant="outline" size="sm" href={`/reservations?open=${reservation.id}`}>
+											  Edit
+										  </Button>
+										</div>
 									</div>
 								{/each}
 							</div>

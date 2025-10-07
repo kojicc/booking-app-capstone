@@ -15,7 +15,7 @@
   import { Input } from "$lib/components/ui/input";
   import { MoreHorizontal, CheckCircle, XCircle } from 'lucide-svelte';
 
-  let { openReservationId = null }: { openReservationId?: number | null } = $props();
+  let { openReservationId = null, mode = null }: { openReservationId?: number | null, mode?: string | null } = $props();
 
   let allReservations = $state<Reservation[]>([]);
   let loading = $state(false);
@@ -593,7 +593,7 @@ $effect(() => {
 
     <Dialog.Footer>
       <Button variant="outline" onclick={() => { foundReservationDialogOpen = false; foundReservation = null; }}>Close</Button>
-      {#if foundReservation}
+      {#if foundReservation && mode !== 'view'}
         <Button onclick={() => { handleApprove(foundReservation!); foundReservationDialogOpen = false; }}>Approve</Button>
         <Button variant="destructive" onclick={() => { showRejectConfirmation(foundReservation!); foundReservationDialogOpen = false; }}>Reject</Button>
       {/if}

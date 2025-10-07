@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-  import ReservationDetailCard from "$lib/components/ReservationDetailCard.svelte";
+	import ReservationDetailCard from "$lib/components/ReservationDetailCard.svelte";
   import { getReservations, deleteReservation, updateReservation } from '$lib/api/reservation';
   import { reservations, clearOpenSignal, invalidateCalendarCache } from '$lib/stores/reservation';
   import { user } from '$lib/stores/user';
@@ -9,14 +9,17 @@
 	import { goto } from '$app/navigation';
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Dialog from "$lib/components/ui/dialog";
+	import * as Popover from "$lib/components/ui/popover";
+	import Calendar from "$lib/components/ui/calendar/calendar.svelte";
   import * as Table from "$lib/components/ui/table";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { MoreHorizontal, Edit, Trash2 } from 'lucide-svelte';
+	import { Calendar as CalendarIcon } from 'lucide-svelte';
 
-	let { openReservationId = null }: { openReservationId?: number | null } = $props();
+	let { openReservationId = null, mode = null }: { openReservationId?: number | null, mode?: string | null } = $props();
 
 	let loading = $state(false);
 	let handledOpenId = $state<number | null>(null);
@@ -28,6 +31,20 @@
 	
 	let showEditDialogOpen = $state(false);
 	let reservationToEdit = $state<Reservation | null>(null);
+
+	let showViewDialogOpen = $state(false);
+	let reservationToView = $state<Reservation | null>(null);
+
+		// View dialog calendar state
+			import { DateFormatter, CalendarDate, getLocalTimeZone } from "@internationalized/date";
+			const viewDf = new DateFormatter("en-US", { dateStyle: "long" });
+			let viewValue = $state<CalendarDate | undefined>(undefined);
+			let viewPopoverOpen = $state(false);
+
+			// Edit dialog calendar state
+			let editValue = $state<CalendarDate | undefined>(undefined);
+			let editPopoverOpen = $state(false);
+			
 	
 	// Track previous clearOpenSignal value to detect actual changes
 	let prevClearOpenSignal = $state(0);
@@ -88,9 +105,13 @@ $effect(() => {
 	// If an openReservationId was supplied via URL param, try to open the edit dialog
 	if (openReservationId && $reservations.length > 0 && handledOpenId !== openReservationId) {
 		const match = $reservations.find(r => r.id === openReservationId);
-		if (match) {
-			// Open edit dialog for this reservation
-			showEditDialog(match);
+			if (match) {
+				if (mode === 'view') {
+					showViewDialog(match);
+				} else {
+					// Open edit dialog for this reservation
+					showEditDialog(match);
+				}
 			handledOpenId = openReservationId;
 					// Remove the query param from the URL so re-navigation doesn't re-open it
 					try {
@@ -142,11 +163,43 @@ $effect(() => {
     editBookingName = reservation.booking_name || reservation.reservation_type_display || reservation.reservation_type;
     const dateValue = reservation.date;
     editDate = dateValue instanceof Date ? dateValue.toISOString().split('T')[0] : String(dateValue);
+		// initialize calendar value for edit popover
+		try {
+			const d = new Date(editDate);
+			editValue = new CalendarDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+		} catch (e) {
+			editValue = undefined;
+		}
     editStartTime = reservation.start_time;
     editEndTime = reservation.end_time;
     editNotes = reservation.notes || '';
     showEditDialogOpen = true;
   }
+
+// Sync editValue -> editDate (ISO yyyy-mm-dd)
+$effect(() => {
+	if (editValue) {
+		editDate = editValue.toString();
+	}
+});
+
+	function showViewDialog(reservation: Reservation) {
+		reservationToView = reservation;
+			// initialize calendar value for view popover
+			try {
+				const d = new Date(reservation.date);
+				viewValue = new CalendarDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+			} catch (e) {
+				viewValue = undefined;
+			}
+			viewPopoverOpen = false;
+			showViewDialogOpen = true;
+	}
+
+	function closeViewDialog() {
+		showViewDialogOpen = false;
+		reservationToView = null;
+	}
 
   async function saveEdit() {
     if (!reservationToEdit) return;
@@ -538,6 +591,82 @@ $effect(() => {
 </AlertDialog.Root>
 
 <!-- Edit Reservation Dialog -->
+<!-- View-only Reservation Dialog -->
+<Dialog.Root bind:open={showViewDialogOpen}>
+	<Dialog.Content class="max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>Reservation Details</Dialog.Title>
+			<Dialog.Description>
+				View reservation details. Use Edit to modify.
+			</Dialog.Description>
+		</Dialog.Header>
+
+			{#if reservationToView}
+				<div class="py-4 space-y-3">
+							<div>
+								<label for={"view-booking-name-" + reservationToView.id} class="block text-xs text-muted-foreground mb-1">Booking Name</label>
+								<Input id={"view-booking-name-" + reservationToView.id} value={reservationToView.booking_name} disabled />
+							</div>
+							<div>
+								<label for={"view-reservation-under-" + reservationToView.id} class="block text-xs text-muted-foreground mb-1">Reservation Under</label>
+								<Input id={"view-reservation-under-" + reservationToView.id} value={(typeof reservationToView.user === 'object' && reservationToView.user?.email) ? reservationToView.user.email : String(reservationToView.user)} disabled />
+							</div>
+							<div class="grid grid-cols-2 gap-3">
+								<div>
+									<label for={"view-date-" + reservationToView.id} class="block text-xs text-muted-foreground mb-1">Date</label>
+									<Popover.Root bind:open={viewPopoverOpen}>
+										<Popover.Trigger id={"view-date-" + reservationToView.id} class="w-full justify-start text-left font-normal inline-flex items-center gap-2 px-3 border rounded-md h-10 bg-white">
+											{#if viewValue}
+												{viewDf.format(viewValue.toDate(getLocalTimeZone()))}
+											{:else}
+												{new Date(reservationToView.date).toLocaleDateString()}
+											{/if}
+											<CalendarIcon class="ml-auto h-4 w-4" />
+										</Popover.Trigger>
+										<Popover.Content class={'w-auto max-w-[92vw] sm:max-w-[320px] p-2 bg-white'}>
+															{#if viewPopoverOpen}
+																<div class="pointer-events-none opacity-90">
+																	<Calendar type="single" bind:value={viewValue} class="rounded-lg" isDateUnavailable={() => false} />
+																</div>
+															{/if}
+										</Popover.Content>
+									</Popover.Root>
+								</div>
+									<div>
+										<label for={"view-booking-no-" + reservationToView.id} class="block text-xs text-muted-foreground mb-1">Booking #</label>
+										<Input id={"view-booking-no-" + reservationToView.id} value={String(reservationToView.id)} disabled />
+									</div>
+					</div>
+					<div class="grid grid-cols-2 gap-3">
+									<div>
+										<label for={"view-start-" + reservationToView.id} class="block text-xs text-muted-foreground mb-1">Start Time</label>
+										<Input id={"view-start-" + reservationToView.id} value={reservationToView.start_time} disabled />
+									</div>
+									<div>
+										<label for={"view-end-" + reservationToView.id} class="block text-xs text-muted-foreground mb-1">End Time</label>
+										<Input id={"view-end-" + reservationToView.id} value={reservationToView.end_time} disabled />
+									</div>
+					</div>
+							<div>
+								<label for={"view-space-" + reservationToView.id} class="block text-xs text-muted-foreground mb-1">Space / Type</label>
+								<Input id={"view-space-" + reservationToView.id} value={reservationToView.reservation_type_display || reservationToView.reservation_type} disabled />
+							</div>
+					{#if reservationToView.notes}
+									<div>
+										<label for={"view-notes-" + reservationToView.id} class="block text-xs text-muted-foreground mb-1">Notes</label>
+										<Input id={"view-notes-" + reservationToView.id} value={reservationToView.notes} disabled />
+									</div>
+					{/if}
+				</div>
+			{/if}
+
+			<Dialog.Footer>
+				<Button variant="outline" onclick={closeViewDialog}>Close</Button>
+				<Button onclick={() => { if (reservationToView) { showEditDialog(reservationToView); closeViewDialog(); } }}>Edit</Button>
+			</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
 <Dialog.Root bind:open={showEditDialogOpen}>
 	<Dialog.Content class="max-w-md">
 		<Dialog.Header>
@@ -552,10 +681,24 @@ $effect(() => {
 				<label for="edit-booking-name" class="block text-sm font-medium mb-1">Booking Name</label>
 				<Input id="edit-booking-name" type="text" bind:value={editBookingName} placeholder="e.g., Team Meeting, Workshop" />
 			</div>
-			<div>
-				<label for="edit-date" class="block text-sm font-medium mb-1">Date</label>
-				<Input id="edit-date" type="date" bind:value={editDate} />
-			</div>
+					<div>
+						<label for="edit-date" class="block text-sm font-medium mb-1">Date</label>
+						<Popover.Root bind:open={editPopoverOpen}>
+							<Popover.Trigger id="edit-date" class="w-full justify-start text-left font-normal inline-flex items-center gap-2 px-3 border rounded-md h-10 bg-white">
+								{#if editValue}
+									{viewDf.format(editValue.toDate(getLocalTimeZone()))}
+								{:else}
+									{editDate}
+								{/if}
+								<CalendarIcon class="ml-auto h-4 w-4" />
+							</Popover.Trigger>
+							<Popover.Content class={'w-auto max-w-[92vw] sm:max-w-[320px] p-2 bg-white'}>
+								{#if editPopoverOpen}
+									<Calendar type="single" bind:value={editValue} class="rounded-lg" isDateUnavailable={() => false} />
+								{/if}
+							</Popover.Content>
+						</Popover.Root>
+					</div>
 			<div class="grid grid-cols-2 gap-4">
 				<div>
 					<label for="edit-start" class="block text-sm font-medium mb-1">Start Time</label>

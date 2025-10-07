@@ -291,46 +291,41 @@ $effect(() => {
       </div>
     </ScrollArea>
 
-  <Dialog.Footer class="flex-shrink-0 mt-4 flex justify-between">
+  <Dialog.Footer class="flex-shrink-0 mt-4 flex justify-between items-center">
      
-      <div class="flex gap-2">
+      <div class="flex gap-2 items-center">
         {#if step > 1}
           <button 
             type="button" 
-            class="bg-secondary text-foreground font-medium rounded-lg px-4 py-2 border border-border shadow-sm transition-colors" 
+            class="bg-secondary text-foreground font-medium rounded-lg px-4 py-2 border border-border shadow-sm transition-colors h-10" 
             onclick={prevStep}
           >
             Previous
           </button>
         {/if}
         {#if step < 3}
-          <div class="flex flex-row items-end">
-           
-            {#if step === 1 && !canProceedStep1}
-              <Alert.Root variant="destructive" class="mt-2">
-                <Alert.Title>Missing information</Alert.Title>
-                <Alert.Description>Please fill booking name, select a date and a valid time range before continuing.</Alert.Description>
-              </Alert.Root>
-            {/if}
-            {#if step >= 1 && canProceedStep1}
-              <button 
+          {#if step === 1 && !canProceedStep1}
+            <Alert.Root variant="destructive" class="mt-2">
+              <Alert.Title>Missing information</Alert.Title>
+              <Alert.Description>Please fill booking name, select a date and a valid time range before continuing.</Alert.Description>
+            </Alert.Root>
+          {:else}
+            <button 
               type="button" 
               class={
-                'bg-primary-200-var hover:bg-primary-300-var text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2 text-sm shadow transition-colors' +
-                (step === 1 && !canProceedStep1 ? 'opacity-60 cursor-not-allowed' : 'hover:bg-primary-300-var')
+                'bg-primary-200-var hover:bg-primary-300-var text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2 text-sm shadow transition-colors h-10' +
+                (step === 1 && !canProceedStep1 ? ' opacity-60 cursor-not-allowed' : '')
               }
               onclick={nextStep}
               disabled={step === 1 && !canProceedStep1}
             >
               Next
             </button>
-            {/if}
-            
-          </div>
+          {/if}
         {:else}
           <button 
             type="button" 
-            class="bg-primary-200-var hover:bg-primary-300-var text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2 text-sm shadow transition-colors"
+            class="bg-primary-200-var hover:bg-primary-300-var text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2 text-sm shadow transition-colors h-10"
             onclick={handleConfirm}
           >
             Confirm Booking

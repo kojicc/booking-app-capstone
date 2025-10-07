@@ -1,9 +1,9 @@
 <script lang="ts">
 interface Props {
-  selectedAddons: string[];
+  selectedAddons?: string[];
 }
 
-export let selectedAddons: string[] = [];
+let { selectedAddons = $bindable([]) }: Props = $props();
 
 const availableAddons = [
   { label: 'Unlimited Coffee', value: 'coffee' },

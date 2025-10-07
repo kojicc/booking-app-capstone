@@ -11,6 +11,10 @@ import { Check } from "lucide-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { DateFormatter, CalendarDate, getLocalTimeZone } from "@internationalized/date";
 import { cn } from "$lib/utils";
+import { Input } from "$lib/components/ui/input/index.js";
+import { Clock } from "lucide-svelte";
+
+
 
 interface Props {
   bookingName?: string;
@@ -42,6 +46,8 @@ let {
   validationError = $bindable("")
 }: Props = $props();
 
+let endTimeRef;
+
 // Local select value for the UI Select (it expects an array of strings)
 // Date restrictions and calendar state
 const _localToday = new Date();
@@ -50,10 +56,31 @@ let minDate = $state(`${_localToday.getFullYear()}-${_pad(_localToday.getMonth()
 
 // shadcn calendar state
 const df = new DateFormatter("en-US", { dateStyle: "long" });
+
+// Initialize value - will be synced with incoming date prop via $effect
 const _today = new Date();
 let value = $state<CalendarDate | undefined>(new CalendarDate(_today.getFullYear(), _today.getMonth() + 1, _today.getDate()));
 let contentRef = $state<HTMLElement | null>(null);
 let popoverOpen = $state(false);
+
+// Track if component just mounted to prioritize incoming date prop
+let justMounted = $state(true);
+
+$effect(() => {
+  // On mount or when date prop changes, sync it to calendar value
+  if (justMounted && date) {
+    try {
+      const parts = String(date).split('-').map(Number);
+      if (parts.length === 3) {
+        const parsed = new CalendarDate(parts[0], parts[1], parts[2]);
+        value = parsed;
+      }
+    } catch (e) {
+      // ignore parse errors
+    }
+    justMounted = false;
+  }
+});
 
 $effect(() => {
   if (value) {
@@ -593,7 +620,7 @@ $effect(() => {
   <Popover.Root bind:open={popoverOpen}>
         <Popover.Trigger id="reservation-date-trigger"
           class={cn(
-            "w-full justify-start text-left font-normal inline-flex items-center gap-2 px-3 py-2 border rounded-md",
+            "w-full justify-start text-left font-normal inline-flex items-center gap-2 px-3 border rounded-md h-9",
             !value && "text-muted-foreground"
           )}
         >
@@ -626,7 +653,7 @@ $effect(() => {
     <div>
       <label for="reservation-space" class="block text-sm font-medium mb-1">Space</label>
       <Select.Root type="single" bind:value={space}>
-        <Select.Trigger id="reservation-space" class="w-full justify-start text-left font-normal inline-flex items-center gap-2 px-3 py-2 border rounded-md">
+        <Select.Trigger id="reservation-space" class="w-full justify-start text-left font-normal inline-flex items-center gap-2 px-3 border rounded-md h-10">
           <span data-slot="select-value" class={space ? '' : 'text-muted-foreground'}>{space ? space : 'Select a space'}</span>
         </Select.Trigger>
         <Select.Content>
@@ -712,24 +739,25 @@ $effect(() => {
           {@const isAvailable = timeSlot.available}
           {@const isPrimetime = timeSlot.type === 'PRIMETIME'}
           <div class={
-            'flex flex-col gap-1.5 sm:gap-2 border rounded-lg p-2 sm:p-3 transition-all duration-200 ' +
+            'relative flex flex-col gap-1.5 sm:gap-2 border rounded-lg p-2 sm:p-3 transition-all duration-200 ' +
             (isAvailable 
               ? (isSelected ? 'bg-emerald-50 border-emerald-300 shadow-sm' : 'bg-white border-gray-200 hover:border-emerald-300 hover:shadow-sm') 
               : 'bg-gray-50 border-gray-200 opacity-70')
           }>
-            <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center justify-between gap-0.5 ">
               <span class={
                 'text-xs sm:text-sm font-semibold whitespace-nowrap ' +
                 (isAvailable ? 'text-gray-900' : 'text-gray-500')
               }>
                 {slotKey}
               </span>
-              {#if isPrimetime}
-                <span class="px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-semibold bg-yellow-100 text-yellow-800 whitespace-nowrap flex-shrink-0">
-                  PT
-                </span>
-              {/if}
             </div>
+            {#if isPrimetime}
+              <!-- Absolute badge positioned above the top-right of the slot card; on large screens sit at far edge -->
+              <span aria-hidden="true" class="absolute -top-2 sm:right-5 md:right-0 lg:right-4 lg:translate-x-1/2 inline-flex items-center justify-center px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-semibold bg-yellow-100 text-yellow-800 whitespace-nowrap shadow-sm">
+                PT
+              </span>
+            {/if}
             <button
               type="button"
               disabled={!isAvailable}
@@ -752,33 +780,49 @@ $effect(() => {
     {/if}
   </div>
 
+  <!-- Time Input Section -->
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
     <div>
       <label for="start-time" class="block text-sm font-medium mb-1">Start Time</label>
-      <input 
-        id="start-time" 
-        type="time" 
-        class="w-full rounded-md border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-primary-200-var focus:border-primary-200-var transition" 
-        bind:value={startTime}
-        min="07:00"
-        max="19:00"
-        disabled={loadingSlots}
-      />
+      <div class="space-y-1">
+        <Input
+          id="start-time"
+          type="time"
+          class="w-full rounded-md border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-primary-200-var focus:border-primary-200-var transition"
+          bind:value={startTime}
+          min="07:00"
+          max="19:00"
+          disabled={loadingSlots}
+          placeholder="HH:MM"
+        />
+        <div class="flex items-center gap-2 text-xs text-gray-600">
+          <Clock class="h-3.5 w-3.5" />
+          <span>Click to select time (07:00 - 19:00)</span>
+        </div>
+      </div>
       {#if loadingSlots}
         <p class="text-xs text-gray-500 mt-1">Time inputs disabled while availability loads...</p>
       {/if}
     </div>
     <div>
       <label for="end-time" class="block text-sm font-medium mb-1">End Time</label>
-      <input 
-        id="end-time" 
-        type="time" 
-        class="w-full rounded-md border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-primary-200-var focus:border-primary-200-var transition" 
-        bind:value={endTime}
-        min="07:00"
-        max="19:00"
-        disabled={loadingSlots}
-      />
+      <div class="space-y-1">
+        <Input 
+          id="end-time" 
+          type="time" 
+          class="w-full rounded-md border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-primary-200-var focus:border-primary-200-var transition" 
+          bind:this={endTimeRef}
+          bind:value={endTime}
+          min="07:00"
+          max="19:00"
+          disabled={loadingSlots}
+          placeholder="HH:MM"
+        />
+        <div class="flex items-center gap-2 text-xs text-gray-600">
+          <Clock class="h-3.5 w-3.5" />
+          <span>Click to select time (07:00 - 19:00)</span>
+        </div>
+      </div>
       {#if loadingSlots}
         <p class="text-xs text-gray-500 mt-1">Time inputs disabled while availability loads...</p>
       {/if}

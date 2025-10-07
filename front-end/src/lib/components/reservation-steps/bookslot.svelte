@@ -624,12 +624,12 @@ $effect(() => {
             !value && "text-muted-foreground"
           )}
         >
-          <CalendarIcon class="h-4 w-4" />
           {#if value}
             {df.format(value.toDate(getLocalTimeZone()))}
           {:else}
             Pick a date
           {/if}
+          <CalendarIcon class="ml-auto h-4 w-4" />
         </Popover.Trigger>
         <Popover.Content
           bind:ref={contentRef}

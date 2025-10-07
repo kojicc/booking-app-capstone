@@ -133,8 +133,26 @@ body {
 	}
 
 	/* Force native time/date picker indicators to be visible and position at END */
-	input[type='time']::-webkit-calendar-picker-indicator,
+	/* input[type='date']::-webkit-calendar-picker-indicator */
 	input[type='date']::-webkit-calendar-picker-indicator {
+		display: block !important;
+		-webkit-appearance: none !important;
+		appearance: none !important;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E") !important;
+		background-repeat: no-repeat !important;
+		background-position: center !important;
+		background-size: 20px 20px !important;
+		width: 24px !important;
+		height: 24px !important;
+		cursor: pointer !important;
+		opacity: 1 !important;
+		filter: none !important;
+		position: absolute !important;
+		right: 8px !important;
+		margin: 0 !important;
+	}
+
+	input[type='time']::-webkit-calendar-picker-indicator {
 		display: block !important;
 		-webkit-appearance: none !important;
 		appearance: none !important;
